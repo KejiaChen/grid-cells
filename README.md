@@ -47,6 +47,7 @@ The files contained in the repository are the following:
 ## Train
 
 The implementation requires an installation of
+[Python] version 2.7, and
 [TensorFlow](https://www.tensorflow.org/) version 1.12, and
 [Sonnet](https://github.com/deepmind/sonnet) version 1.27.
 
