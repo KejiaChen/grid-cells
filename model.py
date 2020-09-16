@@ -21,7 +21,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy
-import sonnet as snt
+import sonnet as snt  # torch.nn
 import tensorflow as tf
 
 
@@ -68,7 +68,7 @@ class GridCellsRNNCell(snt.RNNCore):
         self._bottleneck_has_bias = bottleneck_has_bias
         self._init_weight_disp = init_weight_disp
         self.training = False
-        with self._enter_variable_scope():
+        with self._enter_variable_scope():  # what's for?
             self._lstm = snt.LSTM(self._nh_lstm)
 
     def _build(self, inputs, prev_state):
@@ -82,7 +82,7 @@ class GridCellsRNNCell(snt.RNNCore):
             ((predictions, bottleneck, lstm_outputs), next_state)
             The predictions
         """
-        conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")
+        conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")  # shape 1x(BxN)?
         # Embedding layer
         lstm_inputs = conc_inputs
         # LSTM
@@ -96,11 +96,11 @@ class GridCellsRNNCell(snt.RNNCore):
                                 name="bottleneck")(lstm_output)
         if self.training and self._dropoutrates_bottleneck is not None:
             tf.logging.info("Adding dropout layers")
-            n_scales = len(self._dropoutrates_bottleneck)
-            scale_pops = tf.split(bottleneck, n_scales, axis=1)
+            n_scales = len(self._dropoutrates_bottleneck)  # number of partition
+            scale_pops = tf.split(bottleneck, n_scales, axis=1)  # partitioned bottleneck
             dropped_pops = [tf.nn.dropout(pop, rate, name="dropout")
                             for rate, pop in zip(self._dropoutrates_bottleneck,
-                                                 scale_pops)]
+                                                 scale_pops)]  # each partition with respective dropout rate
             bottleneck = tf.concat(dropped_pops, axis=1)
         # Outputs
         ens_outputs = [snt.Linear(
@@ -133,8 +133,8 @@ class GridCellsRNN(snt.AbstractModule):
 
     def __init__(self, rnn_cell, nh_lstm, name="grid_cell_supervised"):
         super(GridCellsRNN, self).__init__(name=name)
-        self._core = rnn_cell
-        self._nh_lstm = nh_lstm
+        self._core = rnn_cell  # here lstm_cell
+        self._nh_lstm = nh_lstm  # size
 
     def _build(self, init_conds, vels, training=False):
         """Outputs place, and head direction cell predictions from velocity inputs.
@@ -160,7 +160,7 @@ class GridCellsRNN(snt.AbstractModule):
                                                     inputs=(vels,),
                                                     time_major=False,
                                                     initial_state=(init_lstm_state,
-                                                                                                                             init_lstm_cell))
+                                                                   init_lstm_cell))
         ens_targets = output_seq[:-2]
         bottleneck = output_seq[-2]
         lstm_output = output_seq[-1]
