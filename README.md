@@ -69,7 +69,7 @@ $ pip install --upgrade wrapt==1.9.0
 An example training script can be executed from a python interpreter:
 
 ```shell
-$ python train.py --task_root='path/to/datasets/root/folder' --saver_results_directory='path/to/results/folder'
+$  python train.py --task_root='/home/kejia/grid-cells/data' --saver_results_directory='/home/kejia/grid-cells/result''
 ```
 
 Disclaimer: This is not an official Google product.
