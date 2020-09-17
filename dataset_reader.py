@@ -24,15 +24,15 @@ import os
 import tensorflow as tf
 nest = tf.contrib.framework.nest
 
-# Task config
-tf.flags.DEFINE_string('task_dataset_info', 'square_room',
-                       'Name of the room in which the experiment is performed.')
-tf.flags.DEFINE_string('task_root',
-                       '/home/kejia/grid-cells/data',
-                       'Dataset path.')
-tf.flags.DEFINE_integer('training_minibatch_size', 10,
-                        'Size of the training minibatch.')
-FLAGS = tf.flags.FLAGS
+# # Task config
+# tf.flags.DEFINE_string('task_dataset_info', 'square_room',
+#                        'Name of the room in which the experiment is performed.')
+# tf.flags.DEFINE_string('task_root',
+#                        '/home/kejia/grid-cells/data',
+#                        'Dataset path.')
+# tf.flags.DEFINE_integer('training_minibatch_size', 10,
+#                         'Size of the training minibatch.')
+# FLAGS = tf.flags.FLAGS
 
 DatasetInfo = collections.namedtuple(
             'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
@@ -165,9 +165,9 @@ class DataReader(object):
         return batch
 
 
-if __name__ == '__main__':
-    data_reader = DataReader(
-        FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-    train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-    print(type(train_traj))
-    print(len(train_traj))
+# if __name__ == '__main__':
+#     data_reader = DataReader(
+#         FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+#     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     print(type(train_traj))
+#     print(len(train_traj))

@@ -77,7 +77,8 @@ tf.flags.DEFINE_float('model_init_weight_disp', 0.0,
 tf.flags.DEFINE_integer('training_epochs', 1000, 'Number of training epochs.')
 tf.flags.DEFINE_integer('training_steps_per_epoch', 1000,
                         'Number of optimization steps per epoch.')
-
+tf.flags.DEFINE_integer('training_minibatch_size', 10,
+                        'Size of the training minibatch.')
 tf.flags.DEFINE_integer('training_evaluation_minibatch_size', 4000,
                         'Size of the minibatch during evaluation.')
 tf.flags.DEFINE_string('training_clipping_function', 'utils.clip_all_gradients',
