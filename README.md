@@ -47,23 +47,23 @@ The files contained in the repository are the following:
 ## Train
 
 The implementation requires an installation of
-[Python] version 2.7, and
+[Python] version 3.7, and
 [TensorFlow](https://www.tensorflow.org/) version 1.12, and
 [Sonnet](https://github.com/deepmind/sonnet) version 1.27.
 
 ```shell
-$ pip install tensorflow-gpu==1.12.0
-$ pip install dm-sonnet==1.27.0
-$ pip install --upgrade numpy==1.13.3
-$ pip install --upgrade tensorflow==1.12.0-rc0
-$ pip install --upgrade dm-sonnet==1.27
-$ pip install --upgrade scipy==1.0.0
+$ pip install tensorflow-gpu==2.3.0
+$ pip install dm-sonnet==1.27.0 ??
+$ pip install --upgrade numpy==1.18.5
+$ pip install --upgrade tensorflow==1.12.0 ??
+$ pip install --upgrade dm-sonnet==1.27 ??
+$ pip install --upgrade scipy==1.4.1
 ($ sudo apt install pkg-config)
 ($ sudo apt-get install libpng-dev)
 ($ sudo apt-get install libfreetype6-dev)
-$ pip install --upgrade matplotlib==1.5.2
-$ pip install --upgrade tensorflow-probability==0.5.0
-$ pip install --upgrade wrapt==1.9.0
+$ pip install --upgrade matplotlib==1.5.2 ??
+$ pip install --upgrade tensorflow-probability==0.5.0 ??
+$ pip install --upgrade 1.12.1 
 ```
 
 An example training script can be executed from a python interpreter:
@@ -71,6 +71,10 @@ An example training script can be executed from a python interpreter:
 ```shell
 $  python train.py --task_root='/home/kejia/grid-cells/data' --saver_results_directory='/home/kejia/grid-cells/result''
 ```
+
+## Todo list
+- [ ] change into python 3.7 and tensorflow 2 and sonnet 2
+- [ ] parallel running
 
 Disclaimer: This is not an official Google product.
 

@@ -125,7 +125,7 @@ class GridCellsRNNCell(snt.RNNCore):
     def output_size(self):
         """Returns a description of the output size, without batch dimension."""
         return tuple([ens.n_cells for ens in self._target_ensembles] +
-                                 [self._nh_bottleneck, self._nh_lstm])
+                     [self._nh_bottleneck, self._nh_lstm])
 
 
 class GridCellsRNN(snt.AbstractModule):
@@ -134,7 +134,7 @@ class GridCellsRNN(snt.AbstractModule):
     def __init__(self, rnn_cell, nh_lstm, name="grid_cell_supervised"):
         super(GridCellsRNN, self).__init__(name=name)
         self._core = rnn_cell  # here lstm_cell
-        self._nh_lstm = nh_lstm  # size
+        self._nh_lstm = nh_lstm  # Size of LSTM cell.
 
     def _build(self, init_conds, vels, training=False):
         """Outputs place, and head direction cell predictions from velocity inputs.

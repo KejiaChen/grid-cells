@@ -164,7 +164,7 @@ def train():
     ensembles_targets = utils.encode_targets(
             target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
 
-    # Estimate future encoding of place and hd ensembles inputing egocentric vels
+    # Estimate future encoding of place and hd ensembles inputing egocentric vels ?to initialize three outputs?
     outputs, _ = rnn(initial_conds, inputs, training=True)
     ensembles_logits, bottleneck, lstm_output = outputs
 
@@ -220,7 +220,7 @@ def train():
                             'lstm': lstm_output,
                             'pos_xy': target_pos
                     })
-                    res = utils.concat_dict(res, mb_res)
+                    res = utils.concat_dict(res, mb_res)  # evaluation output
 
                 # Store at the end of validation
                 filename = 'rates_and_sac_latest_hd.pdf'

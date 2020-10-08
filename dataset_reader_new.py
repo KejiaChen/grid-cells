@@ -24,6 +24,9 @@ import os
 import tensorflow as tf
 nest = tf.contrib.framework.nest
 
+# todo:
+# change all data reading into tf.data format
+
 # comment these lines when run train.py
 # Task config
 tf.flags.DEFINE_string('task_dataset_info', 'square_room',
@@ -175,5 +178,4 @@ if __name__ == '__main__':
     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
     print(type(train_traj))
     print(train_traj)
-    print('range', data_reader.get_coord_range())
 # comment these lines when run train.py
