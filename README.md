@@ -61,9 +61,10 @@ $ pip install --upgrade scipy==1.4.1
 ($ sudo apt install pkg-config)
 ($ sudo apt-get install libpng-dev)
 ($ sudo apt-get install libfreetype6-dev)
-$ pip install --upgrade matplotlib==1.5.2 ??
+$ pip install --upgrade matplotlib==3.3.2
 $ pip install --upgrade tensorflow-probability==0.5.0 ??
-$ pip install --upgrade 1.12.1 
+$ pip install --upgrade 1.12.1
+$ pip install dm-tree==0.1.5
 ```
 
 An example training script can be executed from a python interpreter:

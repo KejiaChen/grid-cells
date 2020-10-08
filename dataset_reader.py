@@ -23,6 +23,9 @@ import collections
 import os
 import tensorflow as tf
 nest = tf.contrib.framework.nest
+# A nested structure is a Python sequence, tuple (including namedtuple), or dict that can
+# contain further sequences, tuples, and dicts.
+# assume (and do not check) that the nested structures form a 'tree'
 
 # comment these lines when run train.py
 # Task config

@@ -22,21 +22,21 @@ from __future__ import print_function
 import collections
 import os
 import tensorflow as tf
-nest = tf.contrib.framework.nest
-
-# todo:
-# change all data reading into tf.data format
-
+import tree as nest
+from absl import app
+from absl import flags
+import sys
 # comment these lines when run train.py
 # Task config
-tf.flags.DEFINE_string('task_dataset_info', 'square_room',
-                       'Name of the room in which the experiment is performed.')
-tf.flags.DEFINE_string('task_root',
-                       '/home/kejia/grid-cells/data',
-                       'Dataset path.')
-tf.flags.DEFINE_integer('training_minibatch_size', 10,
-                        'Size of the training minibatch.')
-FLAGS = tf.flags.FLAGS
+flags.DEFINE_string("task_dataset_info", "square_room",
+                    "Name of the room in which the experiment is performed.")
+flags.DEFINE_string("task_root",
+                    "/home/kejia/grid-cells/data",
+                    "Dataset path.")
+flags.DEFINE_integer("training_minibatch_size", 10,
+                     "Size of the training minibatch.")
+FLAGS = flags.FLAGS
+FLAGS(sys.argv)
 # comment these lines when run train.py
 
 DatasetInfo = collections.namedtuple(
@@ -111,8 +111,8 @@ class DataReader(object):
 
         with tf.device('/cpu'):
             file_names = _get_dataset_files(self._dataset_info, root)
-            filename_queue = tf.train.string_input_producer(file_names, seed=seed)  # create filename queue
-            reader = tf.TFRecordReader()
+            filename_queue = tf.compat.v1.train.string_input_producer(file_names, seed=seed)  # create filename queue
+            reader = tf.compat.v1.TFRecordReader()
 
             read_ops = [
                     self._make_read_op(reader, filename_queue) for _ in range(num_threads)
@@ -121,7 +121,7 @@ class DataReader(object):
             dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
             shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
 
-            self._queue = tf.RandomShuffleQueue(
+            self._queue = tf.queue.RandomShuffleQueue(
                     capacity=capacity,
                     min_after_dequeue=min_after_dequeue,
                     dtypes=dtypes,
@@ -129,7 +129,7 @@ class DataReader(object):
                     seed=seed)
 
             enqueue_ops = [self._queue.enqueue_many(op) for op in read_ops]
-            tf.train.add_queue_runner(tf.train.QueueRunner(self._queue, enqueue_ops))  # start threads for queue runners
+            tf.compat.v1.train.add_queue_runner(tf.compat.v1.train.QueueRunner(self._queue, enqueue_ops))  # start threads for queue runners
 
     def read(self, batch_size):
         """Reads batch_size."""
@@ -145,23 +145,23 @@ class DataReader(object):
         _, raw_data = reader.read_up_to(filename_queue, num_records=64)
         feature_map = {
             'init_pos':
-                tf.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
+                tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
             'init_hd':
-                tf.FixedLenFeature(shape=[1], dtype=tf.float32),  # shape=(?, 1)
+                tf.io.FixedLenFeature(shape=[1], dtype=tf.float32),  # shape=(?, 1)
             'ego_vel':
-                tf.FixedLenFeature(
+                tf.io.FixedLenFeature(
                     shape=[self._dataset_info.sequence_length, 3],  # shape=(?, 100, 3) for 100 steps
                     dtype=tf.float32),
             'target_pos':
-                tf.FixedLenFeature(
+                tf.io.FixedLenFeature(
                     shape=[self._dataset_info.sequence_length, 2],  # shape=(?, 100, 2) for 100 steps
                     dtype=tf.float32),
             'target_hd':
-                tf.FixedLenFeature(
+                tf.io.FixedLenFeature(
                     shape=[self._dataset_info.sequence_length, 1],  # shape=(?, 100, 1) for 100 steps
                     dtype=tf.float32),
         }
-        example = tf.parse_example(raw_data, feature_map)  # Parses Example protos into a dict of tensors
+        example = tf.io.parse_example(serialized=raw_data, features=feature_map)  # Parses Example protos into a dict of tensors
         batch = [
                 example['init_pos'], example['init_hd'],
                 example['ego_vel'][:, :self._steps, :],  # every 100 steps as a batch
@@ -178,4 +178,5 @@ if __name__ == '__main__':
     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
     print(type(train_traj))
     print(train_traj)
+    print('range', data_reader.get_coord_range())
 # comment these lines when run train.py

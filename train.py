@@ -27,7 +27,7 @@ import _tkinter
 
 matplotlib.use('Agg')
 
-import dataset_reader    # pylint: disable=g-bad-import-order, g-import-not-at-top
+import dataset_reader   # pylint: disable=g-bad-import-order, g-import-not-at-top
 import model    # pylint: disable=g-bad-import-order
 import scores    # pylint: disable=g-bad-import-order
 import utils    # pylint: disable=g-bad-import-order
