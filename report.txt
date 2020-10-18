@@ -1,41 +1,29 @@
 TensorFlow 2.0 Upgrade Script
 -----------------------------
 Converted 1 files
-Detected 5 issues that require attention
+Detected 1 issues that require attention
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-File: dataset_reader.py
+File: ensembles.py
 --------------------------------------------------------------------------------
-dataset_reader.py:25:7: ERROR: Using member tf.contrib.framework.nest in deprecated module tf.contrib. tf.contrib.framework.nest cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
-dataset_reader.py:32:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-dataset_reader.py:34:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-dataset_reader.py:37:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-dataset_reader.py:39:8: ERROR: Using member tf.flags.FLAGS in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+ensembles.py:44:11: ERROR: Using member tf.contrib.distributions.OneHotCategorical in deprecated module tf.contrib. tf.contrib.distributions.OneHotCategorical cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
 ================================================================================
 Detailed log follows:
 
 ================================================================================
 --------------------------------------------------------------------------------
-Processing file 'dataset_reader.py'
- outputting to 'dataset_reader_new.py'
+Processing file 'ensembles.py'
+ outputting to 'ensembles_new.py'
 --------------------------------------------------------------------------------
 
-25:7: ERROR: Using member tf.contrib.framework.nest in deprecated module tf.contrib. tf.contrib.framework.nest cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
-32:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-34:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-37:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-39:8: ERROR: Using member tf.flags.FLAGS in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
-114:29: INFO: Renamed 'tf.train.string_input_producer' to 'tf.compat.v1.train.string_input_producer'
-115:21: INFO: Renamed 'tf.TFRecordReader' to 'tf.compat.v1.TFRecordReader'
-124:26: INFO: Renamed 'tf.RandomShuffleQueue' to 'tf.queue.RandomShuffleQueue'
-132:12: INFO: Renamed 'tf.train.add_queue_runner' to 'tf.compat.v1.train.add_queue_runner'
-132:38: INFO: Renamed 'tf.train.QueueRunner' to 'tf.compat.v1.train.QueueRunner'
-148:16: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
-150:16: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
-152:16: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
-156:16: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
-160:16: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
-164:18: INFO: Added keywords to args of function 'tf.parse_example'
-164:18: INFO: Renamed 'tf.parse_example' to 'tf.io.parse_example'
+32:22: INFO: Added keywords to args of function 'tf.argmax'
+39:11: INFO: Renamed keyword argument for tf.nn.softmax from dim to axis
+44:11: ERROR: Using member tf.contrib.distributions.OneHotCategorical in deprecated module tf.contrib. tf.contrib.distributions.OneHotCategorical cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
+112:19: INFO: Added keywords to args of function 'tf.reduce_mean'
+114:19: INFO: Changing labels arg of tf.nn.softmax_cross_entropy_with_logits to tf.stop_gradient(labels). Please check this transformation.
+
+122:32: INFO: Added keywords to args of function 'tf.reduce_logsumexp'
+122:32: INFO: Renamed keyword argument for tf.reduce_logsumexp from keep_dims to keepdims
+140:28: INFO: Added keywords to args of function 'tf.reduce_sum'
 --------------------------------------------------------------------------------
 

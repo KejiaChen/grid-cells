@@ -1,0 +1,90 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 1 files
+Detected 31 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: train.py
+--------------------------------------------------------------------------------
+train.py:37:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:39:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:42:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:44:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:46:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:48:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:50:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:52:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:54:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:56:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:58:0: ERROR: Using member tf.flags.DEFINE_bool in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:60:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:64:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:65:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:67:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:69:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:71:0: ERROR: Using member tf.flags.DEFINE_bool in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:73:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:77:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:78:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:80:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:82:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:84:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:86:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:89:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:91:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:96:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:99:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:103:0: ERROR: Using member tf.flags.mark_flag_as_required in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:104:0: ERROR: Using member tf.flags.mark_flag_as_required in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+train.py:105:8: ERROR: Using member tf.flags.FLAGS in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+================================================================================
+Detailed log follows:
+
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'train.py'
+ outputting to 'train_new.py'
+--------------------------------------------------------------------------------
+
+37:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+39:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+42:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+44:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+46:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+48:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+50:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+52:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+54:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+56:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+58:0: ERROR: Using member tf.flags.DEFINE_bool in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+60:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+64:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+65:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+67:0: ERROR: Using member tf.flags.DEFINE_list in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+69:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+71:0: ERROR: Using member tf.flags.DEFINE_bool in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+73:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+77:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+78:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+80:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+82:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+84:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+86:0: ERROR: Using member tf.flags.DEFINE_float in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+89:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+91:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+96:0: ERROR: Using member tf.flags.DEFINE_string in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+99:0: ERROR: Using member tf.flags.DEFINE_integer in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+103:0: ERROR: Using member tf.flags.mark_flag_as_required in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+104:0: ERROR: Using member tf.flags.mark_flag_as_required in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+105:8: ERROR: Using member tf.flags.FLAGS in deprecated module tf.flags. tf.flags and tf.app.flags have been removed, please use the argparse or absl modules if you need command line parsing.
+111:4: INFO: Renamed 'tf.reset_default_graph' to 'tf.compat.v1.reset_default_graph'
+151:20: INFO: Renamed 'tf.distributions.Normal' to 'tf.compat.v1.distributions.Normal'
+172:14: INFO: Renamed 'tf.nn.softmax_cross_entropy_with_logits_v2' to 'tf.nn.softmax_cross_entropy_with_logits'
+174:14: INFO: Renamed 'tf.nn.softmax_cross_entropy_with_logits_v2' to 'tf.nn.softmax_cross_entropy_with_logits'
+177:17: INFO: Added keywords to args of function 'tf.reduce_mean'
+205:9: INFO: Renamed 'tf.train.SingularMonitoredSession' to 'tf.compat.v1.train.SingularMonitoredSession'
+212:12: INFO: Renamed 'tf.logging.info' to 'tf.compat.v1.logging.info'
+235:4: INFO: Renamed 'tf.logging.set_verbosity' to 'tf.compat.v1.logging.set_verbosity'
+240:4: INFO: Renamed 'tf.app.run' to 'tf.compat.v1.app.run'
+--------------------------------------------------------------------------------
+

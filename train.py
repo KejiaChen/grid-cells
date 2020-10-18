@@ -37,7 +37,7 @@ import utils    # pylint: disable=g-bad-import-order
 tf.flags.DEFINE_string('task_dataset_info', 'square_room',
                        'Name of the room in which the experiment is performed.')
 tf.flags.DEFINE_string('task_root',
-                       None,
+                       "/home/kejia/grid-cells/data", # None
                        'Dataset path.')
 tf.flags.DEFINE_float('task_env_size', 2.2,
                       'Environment size (meters).')
@@ -94,7 +94,7 @@ tf.flags.DEFINE_string('training_optimizer_options',
 
 # Store
 tf.flags.DEFINE_string('saver_results_directory',
-                       None,
+                       "/home/kejia/grid-cells/result", # None
                        'Path to directory for saving results.')
 tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')

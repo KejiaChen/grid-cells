@@ -52,8 +52,10 @@ The implementation requires an installation of
 [Sonnet](https://github.com/deepmind/sonnet) version 1.27.
 
 ```shell
-$ pip install tensorflow-gpu==2.3.0
-$ pip install dm-sonnet==1.27.0 ??
+$ pip install tensorflow-gpu==2.3.1
+$ pip install --upgrade tensorflow-probability==0.11.1
+$ pip install dm-sonnet==2.0.0
+$ pip install keras==2.4.3
 $ pip install --upgrade numpy==1.18.5
 $ pip install --upgrade tensorflow==1.12.0 ??
 $ pip install --upgrade dm-sonnet==1.27 ??
@@ -65,6 +67,7 @@ $ pip install --upgrade matplotlib==3.3.2
 $ pip install --upgrade tensorflow-probability==0.5.0 ??
 $ pip install --upgrade 1.12.1
 $ pip install dm-tree==0.1.5
+$ pip install absl-py==1.15.0
 ```
 
 An example training script can be executed from a python interpreter:
@@ -75,6 +78,8 @@ $  python train.py --task_root='/home/kejia/grid-cells/data' --saver_results_dir
 
 ## Todo list
 - [ ] change into python 3.7 and tensorflow 2 and sonnet 2
+- [ ] run with original datasets
+- [ ] run with pybullet simulation environments
 - [ ] parallel running
 
 Disclaimer: This is not an official Google product.

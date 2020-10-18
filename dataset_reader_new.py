@@ -28,15 +28,17 @@ from absl import flags
 import sys
 # comment these lines when run train.py
 # Task config
-flags.DEFINE_string("task_dataset_info", "square_room",
-                    "Name of the room in which the experiment is performed.")
-flags.DEFINE_string("task_root",
-                    "/home/kejia/grid-cells/data",
-                    "Dataset path.")
-flags.DEFINE_integer("training_minibatch_size", 10,
-                     "Size of the training minibatch.")
-FLAGS = flags.FLAGS
-FLAGS(sys.argv)
+# flags.DEFINE_string("task_dataset_info", "square_room",
+#                     "Name of the room in which the experiment is performed.")
+# flags.DEFINE_string("task_root",
+#                     "/home/kejia/grid-cells/data",
+#                     "Dataset path.")
+# flags.DEFINE_integer("use_data_files", 10,
+#                      "Number of files to read")
+# flags.DEFINE_integer("training_minibatch_size", 10,
+#                      "Size of the training minibatch.")
+# FLAGS = flags.FLAGS
+# FLAGS(sys.argv)
 # comment these lines when run train.py
 
 DatasetInfo = collections.namedtuple(
@@ -47,18 +49,19 @@ _DATASETS = dict(
             basepath='square_room_100steps_2.2m_1000000',
             size=100,  # 100 files
             sequence_length=100,  # 100 steps
-            coord_range=((-1.1, 1.1), (-1.1, 1.1))),)  # coordinate range for x and y?
+            coord_range=((-1.1, 1.1), (-1.1, 1.1))),)  # coordinate range for x and y
 
 
-def _get_dataset_files(dateset_info, root):
+def _get_dataset_files(dateset_info, use_size, root):
     """Generates lists of files for a given dataset version."""
     basepath = dateset_info.basepath
     base = os.path.join(root, basepath)
-    num_files = dateset_info.size
+    total_num_files = dateset_info.size
+    use_num_files = use_size
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
-            os.path.join(base, template.format(i, num_files - 1))
-            for i in range(num_files)
+            os.path.join(base, template.format(i, total_num_files - 1))
+            for i in range(use_num_files)
     ]
 
 
@@ -75,6 +78,7 @@ class DataReader(object):
     def __init__(
             self,
             dataset,
+            use_size,
             root,
             # Queue params
             num_threads=4,
@@ -110,39 +114,47 @@ class DataReader(object):
         self._steps = _DATASETS[dataset].sequence_length
 
         with tf.device('/cpu'):
-            file_names = _get_dataset_files(self._dataset_info, root)
-            filename_queue = tf.compat.v1.train.string_input_producer(file_names, seed=seed)  # create filename queue
-            reader = tf.compat.v1.TFRecordReader()
+            file_names = _get_dataset_files(self._dataset_info, use_size, root)
+            # filename_queue = tf.data.Dataset.from_tensor_slices(file_names)  # create filename queue
+            self._reader = tf.data.TFRecordDataset(file_names)
 
-            read_ops = [
-                    self._make_read_op(reader, filename_queue) for _ in range(num_threads)
-            ]
-            print('read_ops', read_ops)
-            dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
-            shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
+            self._reader = self._make_read_op(self._reader, capacity, seed)
 
-            self._queue = tf.queue.RandomShuffleQueue(
-                    capacity=capacity,
-                    min_after_dequeue=min_after_dequeue,
-                    dtypes=dtypes,
-                    shapes=shapes,
-                    seed=seed)
+            # read_ops = [
+            #         self._make_read_op(reader, capacity, seed) for _ in range(num_threads)
+            # ]
+            # print('read_ops', read_ops)
 
-            enqueue_ops = [self._queue.enqueue_many(op) for op in read_ops]
-            tf.compat.v1.train.add_queue_runner(tf.compat.v1.train.QueueRunner(self._queue, enqueue_ops))  # start threads for queue runners
+            # iteration
+            # i = 0
+            # # reader_batch = []
+            # for batch in self._reader.take(1):  # 64
+            #     i = i+1
+            #     # reader_batch.append(batch)
+            #     print(repr(reader_batch))
+            #     print("iteration", i)
+
+            # dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
+            # shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
 
     def read(self, batch_size):
-        """Reads batch_size."""
-        in_pos, in_hd, ego_vel, target_pos, target_hd = self._queue.dequeue_many(
-                batch_size)
+        """Reads batch_size. read batch from dict """
+        reader_batch = self._reader.batch(batch_size=batch_size)
+        for batch in reader_batch.take(1):  # 64
+            print(type(batch))
+            in_pos = batch['init_pos']
+            in_hd = batch['init_hd']
+            ego_vel = batch['ego_vel']
+            target_pos = batch['target_pos']
+            target_hd = batch['target_hd']
         return in_pos, in_hd, ego_vel, target_pos, target_hd
 
     def get_coord_range(self):
         return self._dataset_info.coord_range
 
-    def _make_read_op(self, reader, filename_queue):
+    def _make_read_op(self, reader, capacity, seed):
         """Instantiates the ops used to read and parse the data into tensors."""
-        _, raw_data = reader.read_up_to(filename_queue, num_records=64)
+        # _, raw_data = reader.read_up_to(filename_queue, num_records=64)
         feature_map = {
             'init_pos':
                 tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
@@ -161,22 +173,62 @@ class DataReader(object):
                     shape=[self._dataset_info.sequence_length, 1],  # shape=(?, 100, 1) for 100 steps
                     dtype=tf.float32),
         }
-        example = tf.io.parse_example(serialized=raw_data, features=feature_map)  # Parses Example protos into a dict of tensors
-        batch = [
+
+        def read_and_decode(example_string):
+            # feature_dict = tf.io.parse_single_example(serialized=example_string, features=feature_map)
+            #
+            example = tf.io.parse_example(serialized=example_string, features=feature_map)
+            # print('ego_vel', example['ego_vel'])
+            batch = [
                 example['init_pos'], example['init_hd'],
-                example['ego_vel'][:, :self._steps, :],  # every 100 steps as a batch
-                example['target_pos'][:, :self._steps, :],
-                example['target_hd'][:, :self._steps, :]
-        ]
-        return batch
+                example['ego_vel'][:self._steps, :],  # every 100 steps as a batch
+                example['target_pos'][:self._steps, :],
+                example['target_hd'][:self._steps, :]
+            ]
+            # print(batch)
+            return example
+
+        reader = reader.repeat(4)
+        reader = reader.map(read_and_decode)
+        reader = reader.shuffle(buffer_size=capacity, seed=seed)
+        # reader = reader.batch(batch_size=10)
+
+        # # iteration
+        # i = 0
+        # reader_batch = []
+        # for batch in reader.take(1):  # 64
+        #     i = i+1
+        #     reader_batch.append(batch)
+        #     print(repr(reader_batch))
+        #     print("iteration", i)
+
+        # batch_reader = reader.batch(batch_size=50)
+        # reader = tf.convert_to_tensor(reader)
+
+        # shape = []
+        # for item in batch_reader.take(1):  # 測試，只取1個batch
+        #     shape = item['init_pos'][0].numpy()
+        #
+        # batch = [
+        #         batch_reader['init_pos'], batch_reader['init_hd'],
+        #         batch_reader['ego_vel'][:, :self._steps, :],  # every 100 steps as a batch
+        #         batch_reader['target_pos'][:, :self._steps, :],
+        #         batch_reader['target_hd'][:, :self._steps, :]
+        # ]
+        return reader
 
 
 # comment these lines when run train.py
-if __name__ == '__main__':
-    data_reader = DataReader(
-        FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-    train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-    print(type(train_traj))
-    print(train_traj)
-    print('range', data_reader.get_coord_range())
+# if __name__ == '__main__':
+#     dataset_info = _DATASETS[FLAGS.task_dataset_info]
+#     with tf.device('/cpu'):
+#         file_names = _get_dataset_files(dataset_info, FLAGS.use_data_files, FLAGS.task_root)
+#     print(file_names)
+#     data_reader = DataReader(
+#         FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+#     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+#     print(type(init_pos))
+#     print(init_pos)
+#     print('range', data_reader.get_coord_range())
 # comment these lines when run train.py
