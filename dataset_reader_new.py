@@ -141,7 +141,7 @@ class DataReader(object):
         """Reads batch_size. read batch from dict """
         reader_batch = self._reader.batch(batch_size=batch_size)
         for batch in reader_batch.take(1):  # 64
-            print(type(batch))
+            # print(type(batch))
             in_pos = batch['init_pos']
             in_hd = batch['init_hd']
             ego_vel = batch['ego_vel']

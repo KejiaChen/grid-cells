@@ -78,9 +78,9 @@ class GridCellsRNNCell(snt.RNNCore):
                                            #     "w": tf.keras.regularizers.l2(
                                            #         0.5 * (self._bottleneck_weight_decay))},
                                            name="bottleneck")
-        ens_cell, ens_hd = self._target_ensembles
-        self.output_cell_layer = snt.Linear(
-                ens_cell.n_cells,
+        ens_pc, ens_hd = self._target_ensembles
+        self.output_pc_layer = snt.Linear(
+                ens_pc.n_cells,
                 # new version of sonnet has no inner regularizers factor
                 # L2 regularization is added to total_loss in train.py
                 # regularizers={
@@ -89,7 +89,7 @@ class GridCellsRNNCell(snt.RNNCore):
                 w_init=displaced_linear_initializer(self._nh_bottleneck,
                                                     self._init_weight_disp,
                                                     dtype=tf.float32),
-                name="pc_cell_logits")
+                name="pc_logits")
         self.output_hd_layer = snt.Linear(
                 ens_hd.n_cells,
                 # new version of sonnet has no inner regularizers factor
@@ -100,7 +100,7 @@ class GridCellsRNNCell(snt.RNNCore):
                 w_init=displaced_linear_initializer(self._nh_bottleneck,
                                                     self._init_weight_disp,
                                                     dtype=tf.float32),
-                name="pc_hd_logits")
+                name="hd_logits")
 
     def initial_state(self, batch_size, **kwargs):
         hidden = tf.zeros(shape=(batch_size, self._nh_lstm))
@@ -135,7 +135,7 @@ class GridCellsRNNCell(snt.RNNCore):
                                                  scale_pops)]  # each partition with respective dropout rate
             bottleneck = tf.concat(dropped_pops, axis=1)
         # Outputs
-        ens_outputs = [self.output_cell_layer(bottleneck), self.output_hd_layer(bottleneck)]  # two ens: place and HD
+        ens_outputs = [self.output_pc_layer(bottleneck), self.output_hd_layer(bottleneck)]  # two ens: place and HD
         # ens_outputs = [snt.Linear(
         #         ens.n_cells,
         #         # new version of sonnet has no inner regularizers factor
@@ -170,6 +170,8 @@ class GridCellsRNN(snt.Module):
         super(GridCellsRNN, self).__init__(name=name)
         self._core = rnn_cell  # here lstm_cell
         self._nh_lstm = nh_lstm  # Size of LSTM cell.
+        self.initial_pc = snt.Linear(self._nh_lstm, name="state_init")
+        self.initial_hd = snt.Linear(self._nh_lstm, name="cell_init")
 
     def __call__(self, init_conds, vels, training=False):
         """Outputs place, and head direction cell predictions from velocity inputs.
@@ -186,8 +188,8 @@ class GridCellsRNN(snt.Module):
         # Calculate initialization for LSTM. Concatenate pc and hdc activations
         concat_init = tf.concat(init_conds, axis=1)
 
-        init_lstm_state = snt.Linear(self._nh_lstm, name="state_init")(concat_init)
-        init_lstm_cell = snt.Linear(self._nh_lstm, name="cell_init")(concat_init)
+        init_lstm_state = self.initial_pc(concat_init)
+        init_lstm_cell = self.initial_hd(concat_init)
         inital_lstmstate = snt.LSTMState(init_lstm_state, init_lstm_cell)
         self._core.training = training
 

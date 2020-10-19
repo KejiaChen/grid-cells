@@ -179,8 +179,8 @@ def train():
                 labels=targets[0], logits=logits[0], name='pc_loss')
         hd_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=targets[1], logits=logits[1], name='hd_loss')
-        total_loss = pc_loss + hd_loss
-        loss = tf.reduce_mean(input_tensor=total_loss, name='train_loss')
+        bi_loss = pc_loss + hd_loss
+        training_loss = tf.reduce_mean(input_tensor=bi_loss, name='train_loss')
         # If use sonnet 2.0.0, add l2_regularization in loss since
         # sonnet has no inner regularizer in snt.Linear.
         # Disable l2_regularization if use keras instead
@@ -189,18 +189,12 @@ def train():
             for p in rnn.trainable_variables:
                 loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
-            loss = loss + FLAGS.model_weight_decay*loss_regularization
+            loss = training_loss + FLAGS.model_weight_decay * loss_regularization
         return loss
 
     # Optimisation ops
     optimizer_class = eval(FLAGS.training_optimizer_class)    # pylint: disable=eval-used
     optimizer = optimizer_class(**eval(FLAGS.training_optimizer_options))    # pylint: disable=eval-used
-    # grad = optimizer.compute_gradients(train_loss)
-    # clip_gradient = eval(FLAGS.training_clipping_function)    # pylint: disable=eval-used
-    # clipped_grad = [
-    #         clip_gradient(g, var, FLAGS.training_clipping) for g, var in grad
-    # ]
-    # train_op = optimizer.apply_gradients(clipped_grad)
 
     # Store the grid scores
     grid_scores = dict()
@@ -221,11 +215,10 @@ def train():
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
     @tf.function
     def train_step(targets, inputs, init):
-        # why don't we need to transmit model?
         with tf.GradientTape() as tape:
             outputs, _ = rnn(init, inputs, training=True)
             ensembles_logits, bottleneck, lstm_output = outputs
-            loss = loss_object(targets, ensembles_logits)
+            loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, rnn.trainable_variables)
             # grad = optimizer.compute_gradients(train_loss)
             clip_gradient = eval(FLAGS.training_clipping_function)  # pylint: disable=eval-used
@@ -242,6 +235,8 @@ def train():
         # loss = loss_object(targets, ensembles_logits)
         return ensembles_logits, bottleneck, lstm_output
 
+    # uncomment this line to run in Eager mode for debugging
+    # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
         for _ in range(FLAGS.training_steps_per_epoch):
