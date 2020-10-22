@@ -25,8 +25,8 @@ flags.DEFINE_string("task_dataset_info", "square_room",
 flags.DEFINE_string("task_root",
                     "/home/kejia/grid-cells/data",
                     "Dataset path.")
-flags.DEFINE_integer("use_data_files", 100,
-                     "Number of files to read")
+# flags.DEFINE_integer("use_data_files", 100,
+#                      "Number of files to read")
 flags.DEFINE_float("task_env_size", 2.2,
                    "Environment size (meters).")
 flags.DEFINE_list("task_n_pc", [256],
@@ -62,12 +62,12 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 2, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 10,
+flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 1000,
                      "Number of optimization steps per epoch.")
 flags.DEFINE_integer("training_minibatch_size", 10,
                      "Size of the training minibatch.")
-flags.DEFINE_integer("training_evaluation_minibatch_size", 40,
+flags.DEFINE_integer("training_evaluation_minibatch_size", 4000,
                      "Size of the minibatch during evaluation.")
 flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients",
                     "Function for gradient clipping.")
@@ -103,8 +103,8 @@ def train():
 
     # Create the motion models for training and evaluation
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, use_size=FLAGS.use_data_files, root=FLAGS.task_root, num_threads=4)
-    train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+            FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+    # train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -136,27 +136,41 @@ def train():
             init_weight_disp=FLAGS.model_init_weight_disp)
     rnn = model.GridCellsRNN(rnn_core, FLAGS.model_nh_lstm)
 
-    # Get a trajectory batch
-    input_tensors = []
-    init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
-    if FLAGS.task_velocity_inputs:
-        # Add the required amount of noise to the velocities
-        vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
-                sample_shape=ego_vel.get_shape()) * FLAGS.task_velocity_noise
-        input_tensors = [ego_vel + vel_noise] + input_tensors
-    # Concatenate all inputs
-    conc_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
+    # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+
+    def concatenate_inputs(vel):
+        # Get a trajectory batch
+        input_tensors = []
+        if FLAGS.task_velocity_inputs:
+            # Add the required amount of noise to the velocities
+            vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
+                sample_shape=vel.get_shape()) * FLAGS.task_velocity_noise
+            input_tensors = [vel + vel_noise] + input_tensors
+        # Concatenate all inputs
+        concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
+        return concat_inputs
+
+    def prepare_data(traject):
+        init_pos, init_hd, ego_vel, target_pos, target_hd = traject
+        concat_inputs = concatenate_inputs(ego_vel)
+        initial_to_cells = utils.encode_initial_conditions(
+            init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
+        targets_to_cells = utils.encode_targets(
+            target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
+        return concat_inputs, initial_to_cells, targets_to_cells
 
     # Replace euclidean positions and angles by encoding of place and hd ensembles
     # Note that the initial_conds will be zeros if the ensembles were configured
     # to provide that type of initialization
-    initial_conds = utils.encode_initial_conditions(
-            init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
-    # print(initial_conds)
-
-    # Encode targets as well
-    ensembles_targets = utils.encode_targets(
-            target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
+    # !!change in loops
+    # initial_conds = utils.encode_initial_conditions(
+    #         init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
+    # # print(initial_conds)
+    #
+    # # Encode targets as well
+    # # !!change in loops
+    # ensembles_targets = utils.encode_targets(
+    #         target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
 
     # Estimate future encoding of place and hd ensembles inputing egocentric vels? to initialize three outputs?
     # outputs, _ = rnn(initial_conds, inputs, training=True)
@@ -240,6 +254,9 @@ def train():
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
         for _ in range(FLAGS.training_steps_per_epoch):
+            train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+            # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+            conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
             train_loss = train_step(ensembles_targets, conc_inputs, initial_conds)
             loss_acc.append(train_loss)
 
@@ -249,6 +266,9 @@ def train():
             res = dict()
             for _ in range(FLAGS.training_evaluation_minibatch_size //
                            FLAGS.training_minibatch_size):
+                train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+                conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
                 eval_ensembles_logits, eval_bottleneck, eval_lstm_output = eval_step(ensembles_targets, conc_inputs,
                                                                                      initial_conds)
                 mb_res = {

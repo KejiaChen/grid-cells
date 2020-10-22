@@ -29,14 +29,14 @@ nest = tf.contrib.framework.nest
 
 # comment these lines when run train.py
 # Task config
-# tf.flags.DEFINE_string('task_dataset_info', 'square_room',
-#                        'Name of the room in which the experiment is performed.')
-# tf.flags.DEFINE_string('task_root',
-#                        '/home/kejia/grid-cells/data',
-#                        'Dataset path.')
-# tf.flags.DEFINE_integer('training_minibatch_size', 10,
-#                         'Size of the training minibatch.')
-# FLAGS = tf.flags.FLAGS
+tf.flags.DEFINE_string('task_dataset_info', 'square_room',
+                       'Name of the room in which the experiment is performed.')
+tf.flags.DEFINE_string('task_root',
+                       '/home/kejia/grid-cells/data',
+                       'Dataset path.')
+tf.flags.DEFINE_integer('training_minibatch_size', 10,
+                        'Size of the training minibatch.')
+FLAGS = tf.flags.FLAGS
 # comment these lines when run train.py
 
 DatasetInfo = collections.namedtuple(
@@ -135,7 +135,8 @@ class DataReader(object):
     def read(self, batch_size):
         """Reads batch_size."""
         in_pos, in_hd, ego_vel, target_pos, target_hd = self._queue.dequeue_many(
-                batch_size)
+                batch_size) # dequeue in a random order
+        # print("read data +1")
         return in_pos, in_hd, ego_vel, target_pos, target_hd
 
     def get_coord_range(self):
@@ -173,12 +174,12 @@ class DataReader(object):
 
 
 # comment these lines when run train.py
-# if __name__ == '__main__':
-#     data_reader = DataReader(
-#         FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-#     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-#     init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
-#     print(type(init_pos))
-#     print(init_pos)
-#     print('range', data_reader.get_coord_range())
+if __name__ == '__main__':
+    data_reader = DataReader(
+        FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+    train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+    init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+    print(type(init_pos))
+    print(init_pos)
+    print('range', data_reader.get_coord_range())
 # comment these lines when run train.py

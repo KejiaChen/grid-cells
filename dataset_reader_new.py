@@ -25,6 +25,7 @@ import tensorflow as tf
 import tree as nest
 from absl import app
 from absl import flags
+
 import sys
 # comment these lines when run train.py
 # Task config
@@ -33,8 +34,8 @@ import sys
 # flags.DEFINE_string("task_root",
 #                     "/home/kejia/grid-cells/data",
 #                     "Dataset path.")
-# flags.DEFINE_integer("use_data_files", 10,
-#                      "Number of files to read")
+# # flags.DEFINE_integer("use_data_files", 10,
+# #                      "Number of files to read")
 # flags.DEFINE_integer("training_minibatch_size", 10,
 #                      "Size of the training minibatch.")
 # FLAGS = flags.FLAGS
@@ -52,16 +53,17 @@ _DATASETS = dict(
             coord_range=((-1.1, 1.1), (-1.1, 1.1))),)  # coordinate range for x and y
 
 
-def _get_dataset_files(dateset_info, use_size, root):
+def _get_dataset_files(dateset_info, root):
     """Generates lists of files for a given dataset version."""
     basepath = dateset_info.basepath
     base = os.path.join(root, basepath)
-    total_num_files = dateset_info.size
-    use_num_files = use_size
+    num_files = dateset_info.size
+    # use_num_files = use_size
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
-            os.path.join(base, template.format(i, total_num_files - 1))
-            for i in range(use_num_files)
+            os.path.join(base, template.format(i, num_files - 1))
+            for i in range(num_files)
+            # for i in range(use_num_files)
     ]
 
 
@@ -78,7 +80,7 @@ class DataReader(object):
     def __init__(
             self,
             dataset,
-            use_size,
+            # use_size,
             root,
             # Queue params
             num_threads=4,
@@ -114,7 +116,7 @@ class DataReader(object):
         self._steps = _DATASETS[dataset].sequence_length
 
         with tf.device('/cpu'):
-            file_names = _get_dataset_files(self._dataset_info, use_size, root)
+            file_names = _get_dataset_files(self._dataset_info, root)
             # filename_queue = tf.data.Dataset.from_tensor_slices(file_names)  # create filename queue
             self._reader = tf.data.TFRecordDataset(file_names)
 
@@ -136,6 +138,10 @@ class DataReader(object):
 
             # dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
             # shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
+
+    # def read_batch(self, batch_size):
+    #     reader_batch = self._reader.batch(batch_size=batch_size)
+    #     return reader_batch
 
     def read(self, batch_size):
         """Reads batch_size. read batch from dict """
@@ -222,13 +228,15 @@ class DataReader(object):
 # if __name__ == '__main__':
 #     dataset_info = _DATASETS[FLAGS.task_dataset_info]
 #     with tf.device('/cpu'):
-#         file_names = _get_dataset_files(dataset_info, FLAGS.use_data_files, FLAGS.task_root)
+#         file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
 #     print(file_names)
 #     data_reader = DataReader(
 #         FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-#     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-#     init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
-#     print(type(init_pos))
-#     print(init_pos)
+#     train_traj1 = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     # init_pos1, init_hd1, ego_vel1, target_pos1, target_hd1 = train_traj1
+#     train_traj2 = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     # init_pos2, init_hd2, ego_vel2, target_pos2, target_hd2 = train_traj2
+#     # print(type(init_pos))
+#     # print(init_pos)
 #     print('range', data_reader.get_coord_range())
 # comment these lines when run train.py

@@ -118,8 +118,8 @@ def train():
 
     # Create the motion models for training and evaluation
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, use_size=FLAGS.use_data_files, root=FLAGS.task_root, num_threads=4)
-    train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+            FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+    # train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -129,6 +129,8 @@ def train():
             lstm_init_type=FLAGS.task_lstm_init_type,
             n_pc=FLAGS.task_n_pc,
             pc_scale=FLAGS.task_pc_scale)
+
+    # print("place cell ensembles", place_cell_ensembles)
 
     head_direction_ensembles = utils.get_head_direction_ensembles(
             neurons_seed=FLAGS.task_neurons_seed,
@@ -149,28 +151,43 @@ def train():
             init_weight_disp=FLAGS.model_init_weight_disp)
     rnn = model.GridCellsRNN(rnn_core, FLAGS.model_nh_lstm)
 
-    # Get a trajectory batch
-    input_tensors = []
-    init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
-    if FLAGS.task_velocity_inputs:
-        # Add the required amount of noise to the velocities
-        vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
-                sample_shape=ego_vel.get_shape()) * FLAGS.task_velocity_noise
-        input_tensors = [ego_vel + vel_noise] + input_tensors
-    # Concatenate all inputs
-    conc_inputs = tf.concat(input_tensors, axis=2)
+    # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+
+    def concatenate_inputs(vel):
+        # Get a trajectory batch
+        input_tensors = []
+        if FLAGS.task_velocity_inputs:
+            # Add the required amount of noise to the velocities
+            vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
+                sample_shape=vel.get_shape()) * FLAGS.task_velocity_noise
+            input_tensors = [vel + vel_noise] + input_tensors
+        # Concatenate all inputs
+        concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
+        return concat_inputs
+
+    def prepare_data(traject):
+        init_pos, init_hd, ego_vel, target_pos, target_hd = traject
+        concat_inputs = concatenate_inputs(ego_vel)
+        initial_to_cells = utils.encode_initial_conditions(
+            init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
+        targets_to_cells = utils.encode_targets(
+            target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
+        return concat_inputs, initial_to_cells, targets_to_cells
 
     # Replace euclidean positions and angles by encoding of place and hd ensembles
     # Note that the initial_conds will be zeros if the ensembles were configured
     # to provide that type of initialization
-    initial_conds = utils.encode_initial_conditions(
-            init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
+    # !!change in loops
+    # initial_conds = utils.encode_initial_conditions(
+    #         init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
+    # # print(initial_conds)
+    #
+    # # Encode targets as well
+    # # !!change in loops
+    # ensembles_targets = utils.encode_targets(
+    #         target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
 
-    # Encode targets as well
-    ensembles_targets = utils.encode_targets(
-            target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
-
-    # Estimate future encoding of place and hd ensembles inputing egocentric vels ?to initialize three outputs?
+    # Estimate future encoding of place and hd ensembles inputing egocentric vels? to initialize three outputs?
     # outputs, _ = rnn(initial_conds, inputs, training=True)
     # ensembles_logits, bottleneck, lstm_output = outputs
 
@@ -190,12 +207,18 @@ def train():
             for p in rnn.trainable_variables:
                 loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
-            loss = training_loss + FLAGS.model_weight_decay * loss_regularization
+            loss = training_loss + FLAGS.model_weight_decay*loss_regularization
         return loss
 
     # Optimisation ops
     optimizer_class = eval(FLAGS.training_optimizer_class)    # pylint: disable=eval-used
     optimizer = optimizer_class(**eval(FLAGS.training_optimizer_options))    # pylint: disable=eval-used
+    # grad = optimizer.compute_gradients(train_loss)
+    # clip_gradient = eval(FLAGS.training_clipping_function)    # pylint: disable=eval-used
+    # clipped_grad = [
+    #         clip_gradient(g, var, FLAGS.training_clipping) for g, var in grad
+    # ]
+    # train_op = optimizer.apply_gradients(clipped_grad)
 
     # Store the grid scores
     grid_scores = dict()
@@ -216,13 +239,18 @@ def train():
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
     @tf.function
     def train_step(targets, inputs, init):
+        print("start tf function")
         with tf.GradientTape() as tape:
             outputs, _ = rnn(init, inputs, training=True)
+            print("trainable variables", rnn.trainable_variables)
             ensembles_logits, bottleneck, lstm_output = outputs
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, rnn.trainable_variables)
             # grad = optimizer.compute_gradients(train_loss)
             clip_gradient = eval(FLAGS.training_clipping_function)  # pylint: disable=eval-used
+            # clipped_grad = [
+            #     clip_gradient(g, var, FLAGS.training_clipping) for g, var in grad
+            # ]
             clipped_grad = [
                 clip_gradient(g, FLAGS.training_clipping) for g in grad
             ]
@@ -241,6 +269,9 @@ def train():
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
         for _ in range(FLAGS.training_steps_per_epoch):
+            train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+            # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+            conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
             train_loss = train_step(ensembles_targets, conc_inputs, initial_conds)
             loss_acc.append(train_loss)
 
@@ -250,21 +281,25 @@ def train():
             res = dict()
             for _ in range(FLAGS.training_evaluation_minibatch_size //
                            FLAGS.training_minibatch_size):
-                eval_ensembles_logits, eval_bottleneck, eval_lstm_output = eval_step(ensembles_targets, conc_inputs, initial_conds)
+                train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+                conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
+                eval_ensembles_logits, eval_bottleneck, eval_lstm_output = eval_step(ensembles_targets, conc_inputs,
+                                                                                     initial_conds)
                 mb_res = {
-                        'bottleneck': eval_bottleneck,
-                        'lstm': eval_lstm_output,
-                        'pos_xy': target_pos
+                    'bottleneck': eval_bottleneck,
+                    'lstm': eval_lstm_output,
+                    'pos_xy': target_pos
                 }
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
 
             # Store at the end of validation
             filename = 'rates_and_sac_latest_hd.pdf'
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
-                    'btln_60_separation'], grid_scores[
-                            'btln_90_separation'] = utils.get_scores_and_plot(
-                                    latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
-                                    FLAGS.saver_results_directory, filename)
+                'btln_60_separation'], grid_scores[
+                'btln_90_separation'] = utils.get_scores_and_plot(
+                latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
+                FLAGS.saver_results_directory, filename)
 
 
 def main(unused_argv):

@@ -143,6 +143,11 @@ def get_scores_and_plot(scorer,
     act = activations.reshape(-1, activations.shape[-1])
     n_units = act.shape[1]
     # Get the rate-map for each unit
+
+    # for i in range(n_units):
+    #     temp = scorer.calculate_ratemap(xy[:, 0], xy[:, 1], act[:, i])
+    #     print(temp)
+
     s = [
             scorer.calculate_ratemap(xy[:, 0], xy[:, 1], act[:, i])
             for i in xrange(n_units)

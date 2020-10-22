@@ -74,12 +74,12 @@ tf.flags.DEFINE_float('model_init_weight_disp', 0.0,
                       'Initial weight displacement.')
 
 # Training config
-tf.flags.DEFINE_integer('training_epochs', 1000, 'Number of training epochs.')
-tf.flags.DEFINE_integer('training_steps_per_epoch', 1000,
+tf.flags.DEFINE_integer('training_epochs', 10, 'Number of training epochs.')
+tf.flags.DEFINE_integer('training_steps_per_epoch', 10,
                         'Number of optimization steps per epoch.')
 tf.flags.DEFINE_integer('training_minibatch_size', 10,
                         'Size of the training minibatch.')
-tf.flags.DEFINE_integer('training_evaluation_minibatch_size', 4000,
+tf.flags.DEFINE_integer('training_evaluation_minibatch_size', 40,
                         'Size of the minibatch during evaluation.')
 tf.flags.DEFINE_string('training_clipping_function', 'utils.clip_all_gradients',
                        'Function for gradient clipping.')
@@ -100,8 +100,8 @@ tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')
 
 # Require flags from keyboard input
-tf.flags.mark_flag_as_required('task_root')
-tf.flags.mark_flag_as_required('saver_results_directory')
+# tf.flags.mark_flag_as_required('task_root')
+# tf.flags.mark_flag_as_required('saver_results_directory')
 FLAGS = tf.flags.FLAGS
 
 
@@ -202,15 +202,20 @@ def train():
     latest_epoch_scorer = scores.GridScorer(20, data_reader.get_coord_range(),
                                             masks_parameters)
 
+    train_target_pos_list = []
+    eval_target_pos_list = []
+
     with tf.train.SingularMonitoredSession() as sess:
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
             for _ in range(FLAGS.training_steps_per_epoch):
                 res = sess.run({'train_op': train_op, 'total_loss': train_loss})
                 loss_acc.append(res['total_loss'])
+                train_target_pos_list.append(target_pos)
 
             tf.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                             np.mean(loss_acc), np.std(loss_acc))
+
             if epoch % FLAGS.saver_eval_time == 0:
                 res = dict()
                 for _ in xrange(FLAGS.training_evaluation_minibatch_size //
@@ -220,10 +225,13 @@ def train():
                             'lstm': lstm_output,
                             'pos_xy': target_pos
                     })
+                    eval_target_pos_list.append(target_pos)
                     res = utils.concat_dict(res, mb_res)  # evaluation output
 
+                print('end loops')
+
                 # Store at the end of validation
-                filename = 'rates_and_sac_latest_hd.pdf'
+                filename = 'rates_and_sac_latest_hd_py2.7.pdf'
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(

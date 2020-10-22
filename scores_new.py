@@ -228,23 +228,23 @@ class GridScorer(object):
 
 # This is only for test
 # comment theses lines when run train.py
-if __name__ == '__main__':
-    np.set_printoptions(threshold='nan')
-    starts = [0.2] * 10
-    ends = np.linspace(0.4, 1.0, num=10)
-    masks_parameters = zip(starts, ends.tolist())
-    coord_range = ((-1.1, 1.1), (-1.1, 1.1))
-    nbins = 20
-    # latest_epoch_scorer = GridScorer(20, coord_range, masks_parameters)
-    # circle_mask(size, radius, in_val=1.0, out_val=0.0)
-    plotting_sac_mask = circle_mask(
-        [nbins * 2 - 1, nbins * 2 - 1],
-        nbins/2,
-        in_val=1.0,
-        out_val=np.nan)
-    ax = plt.gca()
-    # Plot the ratemap
-    ax.imshow(plotting_sac_mask, interpolation='none')
-    # ax.pcolormesh(ratemap, *args, **kwargs)
-    ax.axis('off')
-    plt.show()
+# if __name__ == '__main__':
+#     np.set_printoptions(threshold='nan')
+#     starts = [0.2] * 10
+#     ends = np.linspace(0.4, 1.0, num=10)
+#     masks_parameters = zip(starts, ends.tolist())
+#     coord_range = ((-1.1, 1.1), (-1.1, 1.1))
+#     nbins = 20
+#     # latest_epoch_scorer = GridScorer(20, coord_range, masks_parameters)
+#     # circle_mask(size, radius, in_val=1.0, out_val=0.0)
+#     plotting_sac_mask = circle_mask(
+#         [nbins * 2 - 1, nbins * 2 - 1],
+#         nbins/2,
+#         in_val=1.0,
+#         out_val=np.nan)
+#     ax = plt.gca()
+#     # Plot the ratemap
+#     ax.imshow(plotting_sac_mask, interpolation='none')
+#     # ax.pcolormesh(ratemap, *args, **kwargs)
+#     ax.axis('off')
+#     plt.show()
