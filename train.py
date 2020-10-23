@@ -39,7 +39,8 @@ import utils    # pylint: disable=g-bad-import-order
 tf.flags.DEFINE_string('task_dataset_info', 'square_room',
                        'Name of the room in which the experiment is performed.')
 tf.flags.DEFINE_string('task_root',
-                       "/home/kejia/grid-cells/data", # None
+                       # "/home/kejia/grid-cells/data",
+                       None,
                        'Dataset path.')
 tf.flags.DEFINE_float('task_env_size', 2.2,
                       'Environment size (meters).')
@@ -76,12 +77,12 @@ tf.flags.DEFINE_float('model_init_weight_disp', 0.0,
                       'Initial weight displacement.')
 
 # Training config
-tf.flags.DEFINE_integer('training_epochs', 10, 'Number of training epochs.')
-tf.flags.DEFINE_integer('training_steps_per_epoch', 10,
+tf.flags.DEFINE_integer('training_epochs', 1000, 'Number of training epochs.')
+tf.flags.DEFINE_integer('training_steps_per_epoch', 1000,
                         'Number of optimization steps per epoch.')
 tf.flags.DEFINE_integer('training_minibatch_size', 10,
                         'Size of the training minibatch.')
-tf.flags.DEFINE_integer('training_evaluation_minibatch_size', 40,
+tf.flags.DEFINE_integer('training_evaluation_minibatch_size', 4000,
                         'Size of the minibatch during evaluation.')
 tf.flags.DEFINE_string('training_clipping_function', 'utils.clip_all_gradients',
                        'Function for gradient clipping.')
@@ -96,7 +97,8 @@ tf.flags.DEFINE_string('training_optimizer_options',
 
 # Store
 tf.flags.DEFINE_string('saver_results_directory',
-                       "/home/kejia/grid-cells/result", # None
+                       # "/home/kejia/grid-cells/result",
+                       None,
                        'Path to directory for saving results.')
 tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')
