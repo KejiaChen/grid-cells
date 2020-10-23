@@ -10,6 +10,8 @@ import sys
 import tensorflow_probability as tfp
 import _tkinter
 # import Tkinter    # pylint: disable=unused-import
+import logging
+import time
 
 matplotlib.use('Agg')
 
@@ -62,12 +64,12 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 1000,
+flags.DEFINE_integer("training_epochs", 10, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 10,
                      "Number of optimization steps per epoch.")
 flags.DEFINE_integer("training_minibatch_size", 10,
                      "Size of the training minibatch.")
-flags.DEFINE_integer("training_evaluation_minibatch_size", 4000,
+flags.DEFINE_integer("training_evaluation_minibatch_size", 40,
                      "Size of the minibatch during evaluation.")
 flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients",
                     "Function for gradient clipping.")
@@ -99,7 +101,7 @@ FLAGS(sys.argv)
 def train():
     """Training loop."""
 
-    tf.compat.v1.reset_default_graph()
+    # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
     data_reader = dataset_reader.DataReader(
@@ -249,6 +251,24 @@ def train():
         # loss = loss_object(targets, ensembles_logits)
         return ensembles_logits, bottleneck, lstm_output
 
+    # logging
+    log_name = 'tensorflow_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime())
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='/home/kejia/grid-cells/log/' + log_name + '.log',
+                        filemode='w')
+    # logging.info('please log something')
+    log = logging.getLogger('tensorflow')
+    log.setLevel(logging.DEBUG)
+    # formatter
+    formatter = logging.Formatter('%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s')
+    # handler
+    fh = logging.FileHandler('tensorflow.log')
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    log.addHandler(fh)
+
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
@@ -260,8 +280,10 @@ def train():
             train_loss = train_step(ensembles_targets, conc_inputs, initial_conds)
             loss_acc.append(train_loss)
 
-        tf.compat.v1.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
-                                  np.mean(loss_acc), np.std(loss_acc))
+        log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
+                 np.mean(loss_acc), np.std(loss_acc))
+        # tf.compat.v1.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
+        #                           np.mean(loss_acc), np.std(loss_acc))
         if epoch % FLAGS.saver_eval_time == 0:
             res = dict()
             for _ in range(FLAGS.training_evaluation_minibatch_size //
@@ -279,7 +301,7 @@ def train():
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
 
             # Store at the end of validation
-            filename = 'rates_and_sac_latest_hd.pdf'
+            filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
                 'btln_90_separation'] = utils.get_scores_and_plot(
@@ -287,10 +309,13 @@ def train():
                 FLAGS.saver_results_directory, filename)
 
 
-def main(unused_argv):
-    tf.compat.v1.logging.set_verbosity(3)    # Print INFO log messages.
-    train()
+# def main(unused_argv):
+#     # tf.compat.v1.logging.set_verbosity(3)    # Print INFO log messages.
+#     logging.basicConfig(filename='/home/kejia/grid-cells/log/examplepy3.log', level=logging.DEBUG)
+#     logging.debug('This message should go to the log file')
+#     train()
 
 
 if __name__ == '__main__':
-    tf.compat.v1.app.run()
+    train()
+    # tf.compat.v1.app.run()

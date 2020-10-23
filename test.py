@@ -1,6 +1,7 @@
 import numpy
 import sonnet as snt
 import tensorflow as tf
+import logging
 
 
 class MyMLP(snt.Module):
@@ -55,6 +56,12 @@ class MyRNN(snt.Module):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(filename='/home/kejia/grid-cells/log/example.log', level=logging.DEBUG)
+    logging.debug('This message should go to the log file')
+    logging.info('So should this')
+    logging.warning('And this, too')
+    logging.error('And non-ASCII stuff, too, like Øresund and Malmö')
+
     mlp1 = MyMLP()
     mlp_input = tf.random.normal([8, 28 * 28])
     # print(mlp_input)

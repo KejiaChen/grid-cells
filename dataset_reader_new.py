@@ -145,6 +145,7 @@ class DataReader(object):
 
     def read(self, batch_size):
         """Reads batch_size. read batch from dict """
+
         reader_batch = self._reader.batch(batch_size=batch_size)
         for batch in reader_batch.take(1):  # 64
             # print(type(batch))
@@ -224,17 +225,23 @@ class DataReader(object):
         return reader
 
 
-# comment these lines when run train.py
+# # comment these lines when run train.py
 # if __name__ == '__main__':
+#     # dataset = tf.data.Dataset.range(10)
+#     # for i in range(4):
+#     #     dataset = dataset.shuffle(buffer_size=10, reshuffle_each_iteration=True)
+#     #     dataset = dataset.take(3)
+#     #     print(list(dataset.as_numpy_iterator()))
+#
 #     dataset_info = _DATASETS[FLAGS.task_dataset_info]
 #     with tf.device('/cpu'):
 #         file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
 #     print(file_names)
 #     data_reader = DataReader(
 #         FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-#     train_traj1 = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     train_traj1 = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
 #     # init_pos1, init_hd1, ego_vel1, target_pos1, target_hd1 = train_traj1
-#     train_traj2 = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)  # tuple of data
+#     train_traj2 = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
 #     # init_pos2, init_hd2, ego_vel2, target_pos2, target_hd2 = train_traj2
 #     # print(type(init_pos))
 #     # print(init_pos)

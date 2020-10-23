@@ -22,6 +22,8 @@ from __future__ import print_function
 import matplotlib
 import numpy as np
 import tensorflow as tf
+import logging
+import time
 import _tkinter
 # import Tkinter    # pylint: disable=unused-import
 
@@ -205,6 +207,23 @@ def train():
     train_target_pos_list = []
     eval_target_pos_list = []
 
+    # logging
+    log_name = 'tensorflow_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime())
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='/home/kejia/grid-cells/log/' + log_name + '.log',
+                        filemode='w')
+    log = logging.getLogger('tensorflow')
+    log.setLevel(logging.DEBUG)
+    # formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # handler
+    fh = logging.FileHandler('tensorflow.log')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    log.addHandler(fh)
+
     with tf.train.SingularMonitoredSession() as sess:
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
@@ -213,8 +232,10 @@ def train():
                 loss_acc.append(res['total_loss'])
                 train_target_pos_list.append(target_pos)
 
-            tf.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
-                            np.mean(loss_acc), np.std(loss_acc))
+            log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
+                     np.mean(loss_acc), np.std(loss_acc))
+            # tf.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
+            #                 np.mean(loss_acc), np.std(loss_acc))
 
             if epoch % FLAGS.saver_eval_time == 0:
                 res = dict()
@@ -228,10 +249,8 @@ def train():
                     eval_target_pos_list.append(target_pos)
                     res = utils.concat_dict(res, mb_res)  # evaluation output
 
-                print('end loops')
-
                 # Store at the end of validation
-                filename = 'rates_and_sac_latest_hd_py2.7.pdf'
+                filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(
