@@ -107,6 +107,7 @@ class GridCellsRNNCell(snt.RNNCore):
         cell = tf.zeros(shape=(batch_size, self._nh_lstm))
         return snt.LSTMState(hidden, cell)
 
+    @tf.function
     def __call__(self, inputs, prev_state):
         """Build the module.
 
@@ -173,6 +174,7 @@ class GridCellsRNN(snt.Module):
         self.initial_pc = snt.Linear(self._nh_lstm, name="state_init")
         self.initial_hd = snt.Linear(self._nh_lstm, name="cell_init")
 
+    @ tf.function
     def __call__(self, init_conds, vels, training=False):
         """Outputs place, and head direction cell predictions from velocity inputs.
 

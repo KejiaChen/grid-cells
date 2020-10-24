@@ -90,6 +90,9 @@ flags.DEFINE_string("saver_results_directory",
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
+flags.DEFINE_integer("saver_pdf_time", 4,
+                     "frequency to save a new pdf result")
+
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")
@@ -140,21 +143,19 @@ def train():
 
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
-    def concatenate_inputs(vel):
-        # Get a trajectory batch
+    def prepare_data(traj):
+        init_pos, init_hd, ego_vel, target_pos, target_hd = traj
+        # inputs
         input_tensors = []
         if FLAGS.task_velocity_inputs:
             # Add the required amount of noise to the velocities
             vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
-                sample_shape=vel.get_shape()) * FLAGS.task_velocity_noise
-            input_tensors = [vel + vel_noise] + input_tensors
+                sample_shape=ego_vel.get_shape()) * FLAGS.task_velocity_noise
+            input_tensors = [ego_vel + vel_noise] + input_tensors
         # Concatenate all inputs
         concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
-        return concat_inputs
 
-    def prepare_data(traject):
-        init_pos, init_hd, ego_vel, target_pos, target_hd = traject
-        concat_inputs = concatenate_inputs(ego_vel)
+        # encode initial and target
         initial_to_cells = utils.encode_initial_conditions(
             init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
         targets_to_cells = utils.encode_targets(
@@ -179,6 +180,7 @@ def train():
     # ensembles_logits, bottleneck, lstm_output = outputs
 
     # Training loss
+    @tf.function
     def loss_object(targets, logits, l2_regularization=False):
         pc_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=targets[0], logits=logits[0], name='pc_loss')
@@ -191,8 +193,12 @@ def train():
         # Disable l2_regularization if use keras instead
         if l2_regularization:
             loss_regularization = []
-            for p in rnn.trainable_variables:
-                loss_regularization.append(tf.nn.l2_loss(p))
+            # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
+            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[3]))  # bottleneck_w
+            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[5]))  # hd_logits_w
+            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[7]))  # pc_logits_w
+            # for p in rnn.trainable_variables:
+            #     loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
             loss = training_loss + FLAGS.model_weight_decay*loss_regularization
         return loss
@@ -229,7 +235,7 @@ def train():
         print("start tf function")
         with tf.GradientTape() as tape:
             outputs, _ = rnn(init, inputs, training=True)
-            print("trainable variables", rnn.trainable_variables)
+            # print("trainable variables", rnn.trainable_variables)
             ensembles_logits, bottleneck, lstm_output = outputs
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, rnn.trainable_variables)
@@ -301,12 +307,19 @@ def train():
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
 
             # Store at the end of validation
-            filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+            if epoch % FLAGS.saver_pdf_time == 0:
+                filename = 'rates_and_sac_latest_hd_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
                 'btln_90_separation'] = utils.get_scores_and_plot(
                 latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
                 FLAGS.saver_results_directory, filename)
+            grid_scores_60 = grid_scores['btln_60']
+            grid_mask = np.zeros_like(grid_scores_60)
+            grid_mask[grid_scores_60 >= 0.37] = 1
+            num_grid_cells = np.sum(grid_mask)
+            log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
 
 
 # def main(unused_argv):

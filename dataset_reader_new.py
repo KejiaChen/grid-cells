@@ -58,7 +58,7 @@ def _get_dataset_files(dateset_info, root):
     basepath = dateset_info.basepath
     base = os.path.join(root, basepath)
     num_files = dateset_info.size
-    # use_num_files = use_size
+    # use_num_files = 64
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
             os.path.join(base, template.format(i, num_files - 1))
@@ -117,8 +117,10 @@ class DataReader(object):
 
         with tf.device('/cpu'):
             file_names = _get_dataset_files(self._dataset_info, root)
+            file_read_up_to = file_names[0:63]
             # filename_queue = tf.data.Dataset.from_tensor_slices(file_names)  # create filename queue
-            self._reader = tf.data.TFRecordDataset(file_names)
+            self._reader = tf.data.TFRecordDataset(file_read_up_to)
+            self._reader = self._reader.repeat(num_threads)
 
             self._reader = self._make_read_op(self._reader, capacity, seed)
 
@@ -147,13 +149,13 @@ class DataReader(object):
         """Reads batch_size. read batch from dict """
 
         reader_batch = self._reader.batch(batch_size=batch_size)
-        for batch in reader_batch.take(1):  # 64
+        for data in reader_batch.take(1):  # 64
             # print(type(batch))
-            in_pos = batch['init_pos']
-            in_hd = batch['init_hd']
-            ego_vel = batch['ego_vel']
-            target_pos = batch['target_pos']
-            target_hd = batch['target_hd']
+            in_pos = data['init_pos']
+            in_hd = data['init_hd']
+            ego_vel = data['ego_vel']
+            target_pos = data['target_pos']
+            target_hd = data['target_hd']
         return in_pos, in_hd, ego_vel, target_pos, target_hd
 
     def get_coord_range(self):
@@ -195,9 +197,9 @@ class DataReader(object):
             # print(batch)
             return example
 
-        reader = reader.repeat(4)
-        reader = reader.map(read_and_decode)
+        # reader = reader.repeat(4)
         reader = reader.shuffle(buffer_size=capacity, seed=seed)
+        reader = reader.map(read_and_decode)
         # reader = reader.batch(batch_size=10)
 
         # # iteration
@@ -227,11 +229,11 @@ class DataReader(object):
 
 # # comment these lines when run train.py
 # if __name__ == '__main__':
-#     # dataset = tf.data.Dataset.range(10)
-#     # for i in range(4):
-#     #     dataset = dataset.shuffle(buffer_size=10, reshuffle_each_iteration=True)
-#     #     dataset = dataset.take(3)
-#     #     print(list(dataset.as_numpy_iterator()))
+#     dataset = tf.data.Dataset.range(10)
+#     for i in range(4):
+#         dataset = dataset.shuffle(buffer_size=10)
+#         dataset = dataset.take(3)
+#         print(list(dataset.as_numpy_iterator()))
 #
 #     dataset_info = _DATASETS[FLAGS.task_dataset_info]
 #     with tf.device('/cpu'):
