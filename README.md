@@ -73,7 +73,7 @@ $ pip install absl-py==1.15.0
 An example training script can be executed from a python interpreter:
 
 ```shell
-$  python train.py --task_root='/home/kejia/grid-cells/data' --saver_results_directory='/home/kejia/grid-cells/result''
+$  python train.py --task_root='/home/kejia/grid-cells' --saver_results_directory='/home/kejia/grid-cells/result'
 ```
 
 ## Todo list

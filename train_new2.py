@@ -121,8 +121,9 @@ def train():
     # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
+    data_root = FLAGS.task_root + '/data'
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+            FLAGS.task_dataset_info, root=data_root, num_threads=4)
     # train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
 
     # Create the ensembles that provide targets during training
@@ -276,7 +277,7 @@ def train():
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
-                        filename='/home/kejia/grid-cells/log/' + log_name + '.log',
+                        filename=FLAGS.task_root + '/log/' + log_name + '.log',
                         filemode='w')
     # logging.info('please log something')
     log = logging.getLogger('tensorflow')
