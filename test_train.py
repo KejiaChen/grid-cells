@@ -12,6 +12,7 @@ import _tkinter
 # import Tkinter    # pylint: disable=unused-import
 import logging
 import time
+from tensorflow import keras
 
 matplotlib.use('Agg')
 
@@ -229,6 +230,9 @@ def train():
     latest_epoch_scorer = scores.GridScorer(20, data_reader.get_coord_range(),
                                             masks_parameters)
 
+    train_target_pos_list = []
+    eval_target_pos_list = []
+
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
     @tf.function
     def train_step(targets, inputs, init):
@@ -276,7 +280,7 @@ def train():
     log.addHandler(fh)
 
     # uncomment this line to run in Eager mode for debugging
-    # tf.config.run_functions_eagerly(True)
+    tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
         for _ in range(FLAGS.training_steps_per_epoch):
@@ -304,6 +308,7 @@ def train():
                     'lstm': eval_lstm_output,
                     'pos_xy': target_pos
                 }
+                eval_target_pos_list.append(target_pos)
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
 
             # Store at the end of validation
@@ -330,5 +335,7 @@ def train():
 
 
 if __name__ == '__main__':
+    bottleneck = np.load('/home/kejia/grid-cells/temp/bottleneck.npy')
+
     train()
     # tf.compat.v1.app.run()

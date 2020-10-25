@@ -102,6 +102,8 @@ tf.flags.DEFINE_string('saver_results_directory',
                        'Path to directory for saving results.')
 tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')
+tf.flags.DEFINE_integer("saver_pdf_time", 4,
+                        "frequency to save a new pdf result")
 
 # Require flags from keyboard input
 # tf.flags.mark_flag_as_required('task_root')
@@ -249,11 +251,14 @@ def train():
                             'lstm': lstm_output,
                             'pos_xy': target_pos
                     })
-                    eval_target_pos_list.append(target_pos)
                     res = utils.concat_dict(res, mb_res)  # evaluation output
+                    eval_target_pos_list.append(res['pos_xy'])
 
                 # Store at the end of validation
-                filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                if epoch % FLAGS.saver_pdf_time == 0:
+                    filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M",
+                                                                                time.localtime()) + '.pdf'
+
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(

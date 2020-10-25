@@ -202,28 +202,6 @@ class DataReader(object):
         reader = reader.map(read_and_decode)
         # reader = reader.batch(batch_size=10)
 
-        # # iteration
-        # i = 0
-        # reader_batch = []
-        # for batch in reader.take(1):  # 64
-        #     i = i+1
-        #     reader_batch.append(batch)
-        #     print(repr(reader_batch))
-        #     print("iteration", i)
-
-        # batch_reader = reader.batch(batch_size=50)
-        # reader = tf.convert_to_tensor(reader)
-
-        # shape = []
-        # for item in batch_reader.take(1):  # 測試，只取1個batch
-        #     shape = item['init_pos'][0].numpy()
-        #
-        # batch = [
-        #         batch_reader['init_pos'], batch_reader['init_hd'],
-        #         batch_reader['ego_vel'][:, :self._steps, :],  # every 100 steps as a batch
-        #         batch_reader['target_pos'][:, :self._steps, :],
-        #         batch_reader['target_hd'][:, :self._steps, :]
-        # ]
         return reader
 
 
