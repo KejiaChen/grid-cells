@@ -114,12 +114,12 @@ class DataReader(object):
             filename_queue = tf.train.string_input_producer(file_names, seed=seed)  # create filename queue
             reader = tf.TFRecordReader()
 
-            read_ops = [
+            self.read_ops = [
                     self._make_read_op(reader, filename_queue) for _ in range(num_threads)  # 64*4
             ]
-            print('read_ops', read_ops)
-            dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
-            shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
+            print('read_ops', self.read_ops)
+            dtypes = nest.map_structure(lambda x: x.dtype, self.read_ops[0])
+            shapes = nest.map_structure(lambda x: x.shape[1:], self.read_ops[0])
 
             self._queue = tf.RandomShuffleQueue(
                     capacity=capacity,
@@ -128,7 +128,7 @@ class DataReader(object):
                     shapes=shapes,
                     seed=seed)
 
-            enqueue_ops = [self._queue.enqueue_many(op) for op in read_ops]
+            enqueue_ops = [self._queue.enqueue_many(op) for op in self.read_ops]
             tf.train.add_queue_runner(tf.train.QueueRunner(self._queue, enqueue_ops))  # start threads for queue runners
             print(self._queue.size)
 
@@ -138,6 +138,9 @@ class DataReader(object):
                 batch_size)  # dequeue in a random order
         # print("read data +1")
         return in_pos, in_hd, ego_vel, target_pos, target_hd
+
+    def return_read_ops(self):
+        return self.read_ops
 
     def get_coord_range(self):
         return self._dataset_info.coord_range

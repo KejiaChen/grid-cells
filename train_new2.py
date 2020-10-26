@@ -42,7 +42,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells",
+                    # None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -93,7 +94,9 @@ flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients"
 flags.DEFINE_float("training_clipping", 1e-5,
                    "The absolute value to clip by.")
 
-flags.DEFINE_string("training_optimizer_class", "tf.keras.optimizers.RMSprop",
+flags.DEFINE_string("training_optimizer_class",
+                    "tf.compat.v1.train.RMSPropOptimizer",
+                    # "tf.keras.optimizers.RMSprop",
                     "The optimizer used for training.")
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
@@ -101,7 +104,8 @@ flags.DEFINE_string("training_optimizer_options",
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells/result",
+                    # None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
@@ -124,7 +128,8 @@ def train():
     data_root = FLAGS.task_root + '/data'
     data_reader = dataset_reader.DataReader(
             FLAGS.task_dataset_info, root=data_root, num_threads=4)
-    # train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+    # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
+
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -247,13 +252,17 @@ def train():
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
     @tf.function
     def train_step(targets, inputs, init):
-        print("start tf function")
+        # print("start tf function")
         with tf.GradientTape() as tape:
             outputs, _ = rnn(init, inputs, training=True)
             # print("trainable variables", rnn.trainable_variables)
             ensembles_logits, bottleneck, lstm_output = outputs
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, rnn.trainable_variables)
+            grad_var = []
+            # for i in range(12):
+            #     temp = tf.tuple([grad[i], rnn.trainable_variables[i]])
+            #     grad_var.append(temp)
             # grad = optimizer.compute_gradients(train_loss)
             clip_gradient = eval(FLAGS.training_clipping_function)  # pylint: disable=eval-used
             # clipped_grad = [
@@ -263,7 +272,7 @@ def train():
                 clip_gradient(g, FLAGS.training_clipping) for g in grad
             ]
             optimizer.apply_gradients(zip(clipped_grad, rnn.trainable_variables))
-            return loss
+            return loss, grad
 
     @tf.function
     def eval_step(targets, inputs, init):
@@ -294,12 +303,15 @@ def train():
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
+        if FLAGS.model_nh_bottleneck:
+            log.info("Adding dropout layers")
         for _ in range(FLAGS.training_steps_per_epoch):
             train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
             # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
             conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
-            train_loss = train_step(ensembles_targets, conc_inputs, initial_conds)
+            train_loss, grad = train_step(ensembles_targets, conc_inputs, initial_conds)
             loss_acc.append(train_loss)
+            # print(_)
 
         log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                  np.mean(loss_acc), np.std(loss_acc))
@@ -320,6 +332,7 @@ def train():
                     'pos_xy': target_pos
                 }
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
+                # print(_)
 
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:

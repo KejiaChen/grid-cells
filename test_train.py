@@ -1,3 +1,20 @@
+# Copyright 2018 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+"""Supervised training for the Grid cell network."""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -12,7 +29,6 @@ import _tkinter
 # import Tkinter    # pylint: disable=unused-import
 import logging
 import time
-from tensorflow import keras
 
 matplotlib.use('Agg')
 
@@ -26,10 +42,11 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    "/home/kejia/grid-cells/data",
+                    "/home/learning/Documents/kejia/grid-cells",
+                    # None,
                     "Dataset path.")
-# flags.DEFINE_integer("use_data_files", 100,
-#                      "Number of files to read")
+flags.DEFINE_integer("use_data_files", 100,
+                     "Number of files to read")
 flags.DEFINE_float("task_env_size", 2.2,
                    "Environment size (meters).")
 flags.DEFINE_list("task_n_pc", [256],
@@ -77,9 +94,9 @@ flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients"
 flags.DEFINE_float("training_clipping", 1e-5,
                    "The absolute value to clip by.")
 
-# flags.DEFINE_string("training_optimizer_class", "tf.compat.v1.train.RMSPropOptimizer",
-#                     "The optimizer used for training.")
-flags.DEFINE_string("training_optimizer_class", "tf.keras.optimizers.RMSprop",
+flags.DEFINE_string("training_optimizer_class",
+                    "tf.compat.v1.train.RMSPropOptimizer",
+                    # "tf.keras.optimizers.RMSprop",
                     "The optimizer used for training.")
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
@@ -87,13 +104,13 @@ flags.DEFINE_string("training_optimizer_options",
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    "/home/kejia/grid-cells/result",
+                    "/home/learning/Documents/kejia/grid-cells/result",
+                    # None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
-flags.DEFINE_integer("saver_pdf_time", 4,
+flags.DEFINE_integer("saver_pdf_time", 50,
                      "frequency to save a new pdf result")
-
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")
@@ -108,9 +125,11 @@ def train():
     # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
+    data_root = FLAGS.task_root + '/data'
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-    # train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
+            FLAGS.task_dataset_info, root=data_root, num_threads=4)
+    # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
+
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -230,19 +249,20 @@ def train():
     latest_epoch_scorer = scores.GridScorer(20, data_reader.get_coord_range(),
                                             masks_parameters)
 
-    train_target_pos_list = []
-    eval_target_pos_list = []
-
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
     @tf.function
     def train_step(targets, inputs, init):
-        print("start tf function")
+        # print("start tf function")
         with tf.GradientTape() as tape:
             outputs, _ = rnn(init, inputs, training=True)
             # print("trainable variables", rnn.trainable_variables)
             ensembles_logits, bottleneck, lstm_output = outputs
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, rnn.trainable_variables)
+            grad_var = []
+            # for i in range(12):
+            #     temp = tf.tuple([grad[i], rnn.trainable_variables[i]])
+            #     grad_var.append(temp)
             # grad = optimizer.compute_gradients(train_loss)
             clip_gradient = eval(FLAGS.training_clipping_function)  # pylint: disable=eval-used
             # clipped_grad = [
@@ -252,7 +272,7 @@ def train():
                 clip_gradient(g, FLAGS.training_clipping) for g in grad
             ]
             optimizer.apply_gradients(zip(clipped_grad, rnn.trainable_variables))
-            return loss
+            return loss, grad
 
     @tf.function
     def eval_step(targets, inputs, init):
@@ -266,7 +286,7 @@ def train():
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
-                        filename='/home/kejia/grid-cells/log/' + log_name + '.log',
+                        filename=FLAGS.task_root + '/log/' + log_name + '.log',
                         filemode='w')
     # logging.info('please log something')
     log = logging.getLogger('tensorflow')
@@ -280,15 +300,18 @@ def train():
     log.addHandler(fh)
 
     # uncomment this line to run in Eager mode for debugging
-    tf.config.run_functions_eagerly(True)
+    # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
+        if FLAGS.model_nh_bottleneck:
+            log.info("Adding dropout layers")
         for _ in range(FLAGS.training_steps_per_epoch):
             train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
             # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
             conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
-            train_loss = train_step(ensembles_targets, conc_inputs, initial_conds)
+            train_loss, grad = train_step(ensembles_targets, conc_inputs, initial_conds)
             loss_acc.append(train_loss)
+            # print(_)
 
         log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                  np.mean(loss_acc), np.std(loss_acc))
@@ -308,8 +331,8 @@ def train():
                     'lstm': eval_lstm_output,
                     'pos_xy': target_pos
                 }
-                eval_target_pos_list.append(target_pos)
                 res = utils.new_concat_dict(res, mb_res)  # evaluation output
+                # print(_)
 
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
@@ -327,15 +350,6 @@ def train():
             log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
 
 
-# def main(unused_argv):
-#     # tf.compat.v1.logging.set_verbosity(3)    # Print INFO log messages.
-#     logging.basicConfig(filename='/home/kejia/grid-cells/log/examplepy3.log', level=logging.DEBUG)
-#     logging.debug('This message should go to the log file')
-#     train()
-
 
 if __name__ == '__main__':
-    bottleneck = np.load('/home/kejia/grid-cells/temp/bottleneck.npy')
-
     train()
-    # tf.compat.v1.app.run()

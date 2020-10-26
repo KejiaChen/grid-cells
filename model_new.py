@@ -69,7 +69,9 @@ class GridCellsRNNCell(snt.RNNCore):
         self._init_weight_disp = init_weight_disp
         self.training = False  # control dropout
         # with self._enter_variable_scope():  # what's for?
-        self._lstm = snt.LSTM(self._nh_lstm)
+        truncated_normal_inital = snt.initializers.TruncatedNormal(stddev=1. / numpy.sqrt(self._nh_lstm))
+        self._lstm = snt.LSTM(self._nh_lstm,
+                              b_init=truncated_normal_inital)
         self.bottleneck_layer = snt.Linear(self._nh_bottleneck,
                                            with_bias=self._bottleneck_has_bias,
                                            # new version of sonnet has no inner regularizers factor
@@ -128,7 +130,7 @@ class GridCellsRNNCell(snt.RNNCore):
         bottleneck = self.bottleneck_layer(lstm_output)
 
         if self.training and self._dropoutrates_bottleneck is not None:
-            tf.compat.v1.logging.info("Adding dropout layers")
+            # tf.compat.v1.logging.info("Adding dropout layers")
             n_scales = len(self._dropoutrates_bottleneck)  # number of partition
             scale_pops = tf.split(bottleneck, n_scales, axis=1)  # partitioned bottleneck
             dropped_pops = [tf.nn.dropout(pop, 1 - (rate), name="dropout")

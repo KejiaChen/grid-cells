@@ -90,9 +90,9 @@ class GridCellsRNNCell(snt.RNNCore):
         # Bottleneck
         bottleneck = snt.Linear(self._nh_bottleneck,
                                 use_bias=self._bottleneck_has_bias,
-                                regularizers={
-                                    "w": tf.contrib.layers.l2_regularizer(
-                                        self._bottleneck_weight_decay)},
+                                # regularizers={
+                                #     "w": tf.contrib.layers.l2_regularizer(
+                                #         self._bottleneck_weight_decay)},
                                 name="bottleneck")(lstm_output)
         if self.training and self._dropoutrates_bottleneck is not None:
             tf.logging.info("Adding dropout layers")
@@ -105,9 +105,9 @@ class GridCellsRNNCell(snt.RNNCore):
         # Outputs:2 Networks for Place and HD cell respectively
         ens_outputs = [snt.Linear(
                 ens.n_cells,
-                regularizers={
-                        "w": tf.contrib.layers.l2_regularizer(
-                                self._bottleneck_weight_decay)},
+                # regularizers={
+                #         "w": tf.contrib.layers.l2_regularizer(
+                #                 self._bottleneck_weight_decay)},
                 initializers={
                         "w": displaced_linear_initializer(self._nh_bottleneck,
                                                           self._init_weight_disp,

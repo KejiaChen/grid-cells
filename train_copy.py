@@ -39,8 +39,8 @@ import utils    # pylint: disable=g-bad-import-order
 tf.flags.DEFINE_string('task_dataset_info', 'square_room',
                        'Name of the room in which the experiment is performed.')
 tf.flags.DEFINE_string('task_root',
-                       '/home/learning/Documents/kejia/grid-cells',
-                       # None,
+                       # "/home/kejia/grid-cells/data",
+                       None,
                        'Dataset path.')
 tf.flags.DEFINE_float('task_env_size', 2.2,
                       'Environment size (meters).')
@@ -97,14 +97,11 @@ tf.flags.DEFINE_string('training_optimizer_options',
 
 # Store
 tf.flags.DEFINE_string('saver_results_directory',
-                       "/home/learning/Documents/kejia/grid-cells/result",
-                       # None,
+                       # "/home/kejia/grid-cells/result",
+                       None,
                        'Path to directory for saving results.')
 tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')
-tf.flags.DEFINE_integer("saver_pdf_time", 50,
-                        "frequency to save a new pdf result")
-
 
 # Require flags from keyboard input
 # tf.flags.mark_flag_as_required('task_root')
@@ -122,10 +119,6 @@ def train():
     data_reader = dataset_reader.DataReader(
             FLAGS.task_dataset_info, root=data_root, num_threads=4)
     train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
-    # read_ops = data_reader.read_ops
-    # read_temp0 = read_ops[0]
-    # read_temp1 = read_ops[1]
-    # read_temp2 = read_ops[2]
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -154,6 +147,7 @@ def train():
             bottleneck_has_bias=FLAGS.model_bottleneck_has_bias,
             init_weight_disp=FLAGS.model_init_weight_disp)
     rnn = model.GridCellsRNN(rnn_core, FLAGS.model_nh_lstm)
+    # print('variables', rnn.get_all_variables())
 
     # Get a trajectory batch
     input_tensors = []
@@ -198,15 +192,6 @@ def train():
     ]
     train_op = optimizer.apply_gradients(clipped_grad)
 
-    # manual l2 regularization
-    loss_regularization = []
-    # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[6][1]))  # bottleneck_w
-    loss_regularization.append(tf.nn.l2_loss(grad[7][1]))  # hd_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[9][1]))
-    loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
-    loss = train_loss + FLAGS.model_weight_decay * loss_regularization
-
     # Store the grid scores
     grid_scores = dict()
     grid_scores['btln_60'] = np.zeros((FLAGS.model_nh_bottleneck,))
@@ -247,19 +232,10 @@ def train():
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
             for _ in range(FLAGS.training_steps_per_epoch):
-                temp = sess.run({'grad': grad})
-                res = sess.run({'train_op': train_op,
-                                'total_loss': loss,
-                                'init': initial_conds,
-                                'grad': grad})
-                                # 'readops[0]': read_temp0,
-                                # 'readops[1]': read_temp1,
-                                # 'readops[2]': read_temp2})
+                res = sess.run({'train_op': train_op, 'total_loss': train_loss})
                 loss_acc.append(res['total_loss'])
                 train_target_pos_list.append(target_pos)
-                # print(_)
 
-            # summary_writer = tf.summary.FileWriter(FLAGS.task_root + '/graph/', sess.graph)
             log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                      np.mean(loss_acc), np.std(loss_acc))
             # tf.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
@@ -278,9 +254,7 @@ def train():
                     res = utils.concat_dict(res, mb_res)  # evaluation output
 
                 # Store at the end of validation
-                if epoch % FLAGS.saver_pdf_time == 0:
-                    filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M",
-                                                                                time.localtime()) + '.pdf'
+                filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(

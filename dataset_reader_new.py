@@ -117,10 +117,9 @@ class DataReader(object):
 
         with tf.device('/cpu'):
             file_names = _get_dataset_files(self._dataset_info, root)
-            file_read_up_to = file_names[0:63]
             # filename_queue = tf.data.Dataset.from_tensor_slices(file_names)  # create filename queue
-            self._reader = tf.data.TFRecordDataset(file_read_up_to)
-            self._reader = self._reader.repeat(num_threads)
+            self._reader = tf.data.TFRecordDataset(file_names)
+            # self._reader = self._reader.repeat(num_threads)
 
             self._reader = self._make_read_op(self._reader, capacity, seed)
 
@@ -141,15 +140,15 @@ class DataReader(object):
             # dtypes = nest.map_structure(lambda x: x.dtype, read_ops[0])
             # shapes = nest.map_structure(lambda x: x.shape[1:], read_ops[0])
 
-    # def read_batch(self, batch_size):
-    #     reader_batch = self._reader.batch(batch_size=batch_size)
-    #     return reader_batch
+    def read_batch(self, batch_size):
+        reader_batch = self._reader.batch(batch_size=batch_size)
+        return reader_batch
 
     def read(self, batch_size):
         """Reads batch_size. read batch from dict """
 
         reader_batch = self._reader.batch(batch_size=batch_size)
-        for data in reader_batch.take(1):  # 64
+        for data in reader_batch.take(1):  # reader_batch.take(1) has only one element
             # print(type(batch))
             in_pos = data['init_pos']
             in_hd = data['init_hd']
