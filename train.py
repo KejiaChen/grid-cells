@@ -199,13 +199,13 @@ def train():
     train_op = optimizer.apply_gradients(clipped_grad)
 
     # manual l2 regularization
-    loss_regularization = []
-    # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[6][1]))  # bottleneck_w
-    loss_regularization.append(tf.nn.l2_loss(grad[7][1]))  # hd_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[9][1]))
-    loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
-    loss = train_loss + FLAGS.model_weight_decay * loss_regularization
+    # loss_regularization = []
+    # # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[6][1]))  # bottleneck_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[7][1]))  # hd_logits_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[9][1]))
+    # loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
+    # loss = train_loss + FLAGS.model_weight_decay * loss_regularization
 
     # Store the grid scores
     grid_scores = dict()
@@ -243,15 +243,17 @@ def train():
     fh.setFormatter(formatter)
     log.addHandler(fh)
 
+    saver = tf.train.Saver()
+
     with tf.train.SingularMonitoredSession() as sess:
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
             for _ in range(FLAGS.training_steps_per_epoch):
                 temp = sess.run({'grad': grad})
                 res = sess.run({'train_op': train_op,
-                                'total_loss': loss,
-                                'init': initial_conds,
-                                'grad': grad})
+                                'total_loss': train_loss})
+                                # 'init': initial_conds,
+                                # 'grad': grad})
                                 # 'readops[0]': read_temp0,
                                 # 'readops[1]': read_temp1,
                                 # 'readops[2]': read_temp2})
@@ -281,11 +283,17 @@ def train():
                 if epoch % FLAGS.saver_pdf_time == 0:
                     filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M",
                                                                                 time.localtime()) + '.pdf'
+                    modelname = '/model/ckpt_py2' + time.strftime("%m-%d_%H:%M",
+                                                              time.localtime()) + '/model_py2.ckpt'
+
+                    saver.save(utils.get_session(sess), FLAGS.saver_results_directory + modelname)  # save the model
+
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(
                                         latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
                                         FLAGS.saver_results_directory, filename)
+
                 grid_scores_60 = grid_scores['btln_60']
                 grid_mask = np.zeros_like(grid_scores_60)
                 grid_mask[grid_scores_60 >= 0.37] = 1

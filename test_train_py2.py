@@ -104,6 +104,8 @@ tf.flags.DEFINE_integer('saver_eval_time', 2,
                         'Frequency at which results are saved.')
 tf.flags.DEFINE_integer("saver_pdf_time", 50,
                         "frequency to save a new pdf result")
+tf.flags.DEFINE_integer("saver_model_time", 2,
+                        "frequency to save the training model")
 
 
 # Require flags from keyboard input
@@ -176,6 +178,13 @@ def train():
     ensembles_targets = utils.encode_targets(
             target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
 
+    # test the decoding part
+    # diff = []
+    # euclidean_targets = utils.decode_targets(ensembles_targets, place_cell_ensembles, head_direction_ensembles)
+    # euclidean_pos = tf.reshape(euclidean_targets[0], [10, 100, 2])
+    # diff = target_pos - euclidean_pos
+    # diff.append(tf.reduce_mean(target_pos - euclidean_pos))
+
     # Estimate future encoding of place and hd ensembles inputing egocentric vels ?to initialize three outputs?
     outputs, _ = rnn(initial_conds, inputs, training=True)
     ensembles_logits, bottleneck, lstm_output = outputs
@@ -198,14 +207,14 @@ def train():
     ]
     train_op = optimizer.apply_gradients(clipped_grad)
 
-    # manual l2 regularization
-    loss_regularization = []
-    # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[6][1]))  # bottleneck_w
-    loss_regularization.append(tf.nn.l2_loss(grad[7][1]))  # hd_logits_w
-    loss_regularization.append(tf.nn.l2_loss(grad[9][1]))
-    loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
-    loss = train_loss + FLAGS.model_weight_decay * loss_regularization
+    # # manual l2 regularization
+    # loss_regularization = []
+    # # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[6][1]))  # bottleneck_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[7][1]))  # hd_logits_w
+    # loss_regularization.append(tf.nn.l2_loss(grad[9][1]))
+    # loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
+    # loss = train_loss + FLAGS.model_weight_decay * loss_regularization
 
     # Store the grid scores
     grid_scores = dict()
@@ -243,19 +252,22 @@ def train():
     fh.setFormatter(formatter)
     log.addHandler(fh)
 
+    saver = tf.train.Saver()
+
     with tf.train.SingularMonitoredSession() as sess:
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
             for _ in range(FLAGS.training_steps_per_epoch):
                 temp = sess.run({'grad': grad})
                 res = sess.run({'train_op': train_op,
-                                'total_loss': loss,
+                                'total_loss': train_loss,
                                 'init': initial_conds,
-                                'grad': grad})
-                                # 'readops[0]': read_temp0,
-                                # 'readops[1]': read_temp1,
-                                # 'readops[2]': read_temp2})
+                                'target': target_pos
+                                # 'euclidean_position': euclidean_pos,
+                                # 'decoding_diff': diff
+                                })
                 loss_acc.append(res['total_loss'])
+
                 train_target_pos_list.append(target_pos)
                 # print(_)
 
@@ -272,7 +284,9 @@ def train():
                     mb_res = sess.run({
                             'bottleneck': bottleneck,
                             'lstm': lstm_output,
-                            'pos_xy': target_pos
+                            'pos_xy': target_pos,
+                            # 'decode_target':euclidean_pos,
+                            # 'ensemble_pos': ensembles_logits[0]
                     })
                     eval_target_pos_list.append(target_pos)
                     res = utils.concat_dict(res, mb_res)  # evaluation output
@@ -281,6 +295,21 @@ def train():
                 if epoch % FLAGS.saver_pdf_time == 0:
                     filename = 'rates_and_sac_latest_hd_py2.7_' + time.strftime("%m-%d_%H:%M",
                                                                                 time.localtime()) + '.pdf'
+                    plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M",
+                                                                   time.localtime()) + '.pdf'
+                    modelname = '/model/ckpt_py2' + time.strftime("%m-%d_%H:%M",
+                                                                    time.localtime()) + '/model_py2.ckpt'
+
+                    saver.save(utils.get_session(sess), FLAGS.saver_results_directory+modelname)  # save the model
+
+                # utils.plot_trajectories(res['pos_xy'], res['decode_target'], 10, FLAGS.saver_results_directory, plotname)
+
+                # if epoch % FLAGS.saver_model_time == 0:
+                #     save_sess = tf.Session()
+                #     step = epoch*FLAGS.training_steps_per_epoch
+                #     saver.save(save_sess, 'py2-reg-auto-model' + time.strftime("%m-%d_%H:%M",
+                #                                                           time.localtime()), global_step=step)
+
                 grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                         'btln_60_separation'], grid_scores[
                                 'btln_90_separation'] = utils.get_scores_and_plot(

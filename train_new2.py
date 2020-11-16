@@ -299,12 +299,13 @@ def train():
     fh.setFormatter(formatter)
     log.addHandler(fh)
 
+    if FLAGS.model_nh_bottleneck:
+        log.info("Adding dropout layers")
+
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
-        loss_acc = list()
-        if FLAGS.model_nh_bottleneck:
-            log.info("Adding dropout layers")
+        loss_acc = []
         for _ in range(FLAGS.training_steps_per_epoch):
             train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
             # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj

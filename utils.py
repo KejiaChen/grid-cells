@@ -80,11 +80,19 @@ def encode_initial_conditions(init_pos, init_hd, place_cell_ensembles,
 def encode_targets(target_pos, target_hd, place_cell_ensembles,
                    head_direction_ensembles):
     ensembles_targets = []
-    for ens in place_cell_ensembles:
+    for ens in place_cell_ensembles:  # list_length:1
         ensembles_targets.append(ens.get_targets(target_pos))
     for ens in head_direction_ensembles:
         ensembles_targets.append(ens.get_targets(target_hd))
     return ensembles_targets
+
+
+def decode_targets(ensembles_targets, place_cell_ensembles,
+                   head_direction_ensembles):
+    euclidean_targets = []
+    for ens in place_cell_ensembles:
+        euclidean_targets.append(ens.decode_position(ensembles_targets[0]))
+    return euclidean_targets
 
 
 def clip_all_gradients(g, var, limit):
@@ -188,5 +196,43 @@ def get_scores_and_plot(scorer,
         plt.savefig(f, format="pdf")
     plt.close(fig)
     return (np.asarray(score_60), np.asarray(score_90),
-            np.asarray(map(np.mean, max_60_mask)),  # Why do we need this?
+            np.asarray(map(np.mean, max_60_mask)),
             np.asarray(map(np.mean, max_90_mask)))
+
+
+def plot_trajectories(target_trajectory, decode_trajectory, num, directory, filename):
+    size = np.size(target_trajectory, 0) - 1
+    # id = int(np.ceil(size*np.random.rand(num)))  # select 10 trajctories randomly
+    # size = 10
+    cols = 5
+    rows = int(np.ceil(num / cols))
+    # fig = plt.figure()
+    fig, ax = plt.subplots(rows, cols, sharex='col', sharey='row', figsize=(15, 6))
+    for i in range(rows):
+        for j in range(cols):
+            # fig, axis = plt.subplots(rows, cols, i+1, sharex='col', sharey='row')
+            index = (i-1)*cols + j
+            target_x = target_trajectory[index, :, 0]
+            target_y = target_trajectory[index, :, 1]
+            decode_x = decode_trajectory[index, :, 0]
+            decode_y = decode_trajectory[index, :, 1]
+            ax[i][j].plot(target_x, target_y, color='blue', linewidth=3.0)
+            ax[i][j].plot(decode_x, decode_y, color='green', linewidth=3.0)
+            ax[i][j].set_xlim((-1.1, 1.1))
+            ax[i][j].set_ylim((-1.1, 1.1))
+    fig.tight_layout()
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with PdfPages(os.path.join(directory, filename), "w") as f:
+        plt.savefig(f, format="pdf")
+    plt.close(fig)
+
+
+def get_session(sess):
+    """tf.train.MonitoredTrainingSession(...) doesn't support tf.train.Saver().save
+       use this function to circumvent this issue """
+    session = sess
+    while type(session).__name__ != 'Session':
+        # pylint: disable=W0212
+        session = session._sess
+    return session
