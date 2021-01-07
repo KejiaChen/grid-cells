@@ -42,8 +42,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    "/home/learning/Documents/kejia/grid-cells",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells",
+                    None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -104,13 +104,19 @@ flags.DEFINE_string("training_optimizer_options",
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/result",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells/result",
+                    None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
 flags.DEFINE_integer("saver_pdf_time", 50,
                      "frequency to save a new pdf result")
+
+# Switch mode: training or test
+flags.DEFINE_string("test",
+                    # "/home/learning/Documents/kejia/grid-cells/result",
+                    False,
+                    "choose 'train' or 'test'")
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")
@@ -201,6 +207,11 @@ def train():
 
     # Training loss
     @tf.function
+    def manual_regularization(parameter):
+        regularization = ((tf.nn.l2_loss(parameter) * 2) ** 0.5) * 0.5
+        return regularization
+
+    @tf.function
     def loss_object(targets, logits, l2_regularization=False):
         pc_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=targets[0], logits=logits[0], name='pc_loss')
@@ -214,9 +225,9 @@ def train():
         if l2_regularization:
             loss_regularization = []
             # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[3]))  # bottleneck_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[5]))  # hd_logits_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[7]))  # pc_logits_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[3]))  # bottleneck_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[5]))  # hd_logits_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[7]))  # pc_logits_w
             # for p in rnn.trainable_variables:
             #     loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
@@ -299,13 +310,19 @@ def train():
     fh.setFormatter(formatter)
     log.addHandler(fh)
 
-    if FLAGS.model_nh_bottleneck:
-        log.info("Adding dropout layers")
+    # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn)
+    check_dir = FLAGS.saver_results_directory + "/model/ckpt_py3" + time.strftime("%m-%d_%H:%M", time.localtime())
+
+    manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
+                                         checkpoint_name='model_py3.ckpt')
 
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
-        loss_acc = []
+        loss_acc = list()
+        if FLAGS.model_nh_bottleneck:
+            log.info("Adding dropout layers")
         for _ in range(FLAGS.training_steps_per_epoch):
             train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
             # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
@@ -338,6 +355,7 @@ def train():
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
                 filename = 'rates_and_sac_latest_hd_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                manager.save()
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
@@ -349,7 +367,6 @@ def train():
             grid_mask[grid_scores_60 >= 0.37] = 1
             num_grid_cells = np.sum(grid_mask)
             log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
-
 
 
 if __name__ == '__main__':

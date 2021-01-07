@@ -109,7 +109,7 @@ flags.DEFINE_string("saver_results_directory",
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
-flags.DEFINE_integer("saver_pdf_time", 50,
+flags.DEFINE_integer("saver_pdf_time", 5,
                      "frequency to save a new pdf result")
 
 # Require flags from keyboard input
@@ -201,6 +201,11 @@ def train():
 
     # Training loss
     @tf.function
+    def manual_regularization(parameter):
+        regularization = ((tf.nn.l2_loss(parameter) * 2) ** 0.5) * 0.5
+        return regularization
+
+    @tf.function
     def loss_object(targets, logits, l2_regularization=False):
         pc_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=targets[0], logits=logits[0], name='pc_loss')
@@ -214,9 +219,9 @@ def train():
         if l2_regularization:
             loss_regularization = []
             # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[3]))  # bottleneck_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[5]))  # hd_logits_w
-            loss_regularization.append(tf.nn.l2_loss(rnn.trainable_variables[7]))  # pc_logits_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[3]))  # bottleneck_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[5]))  # hd_logits_w
+            loss_regularization.append(manual_regularization(rnn.trainable_variables[7]))  # pc_logits_w
             # for p in rnn.trainable_variables:
             #     loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
@@ -299,6 +304,13 @@ def train():
     fh.setFormatter(formatter)
     log.addHandler(fh)
 
+    # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn, step=tf.Variable(0))
+    check_dir = FLAGS.saver_results_directory + "/model/ckpt_py3" + time.strftime("%m-%d_%H:%M", time.localtime())
+
+    manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
+                                         checkpoint_name='model_py3.ckpt')
+
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
@@ -315,6 +327,7 @@ def train():
 
         log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                  np.mean(loss_acc), np.std(loss_acc))
+        checkpoint.step.assign_add(1)
         # tf.compat.v1.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
         #                           np.mean(loss_acc), np.std(loss_acc))
         if epoch % FLAGS.saver_eval_time == 0:
@@ -337,6 +350,8 @@ def train():
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
                 filename = 'rates_and_sac_latest_hd_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                save_path = manager.save()
+                log.info("Saved checkpoint for epoch {}: {}".format(int(checkpoint.step), save_path))
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
