@@ -134,3 +134,6 @@ data/
 result/
 log/
 dm_lab_data/
+graph/
+tensorflow.log
+__pycache__/
