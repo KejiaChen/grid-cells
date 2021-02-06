@@ -42,8 +42,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    # "/home/learning/Documents/kejia/grid-cells",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells",
+                    # None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -104,8 +104,8 @@ flags.DEFINE_string("training_optimizer_options",
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    # "/home/learning/Documents/kejia/grid-cells/result",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells/result",
+                    # None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
@@ -113,10 +113,10 @@ flags.DEFINE_integer("saver_pdf_time", 50,
                      "frequency to save a new pdf result")
 
 # Switch mode: training or test
-flags.DEFINE_string("test",
-                    # "/home/learning/Documents/kejia/grid-cells/result",
-                    False,
-                    "choose 'train' or 'test'")
+# flags.DEFINE_string("test",
+#                     # "/home/learning/Documents/kejia/grid-cells/result",
+#                     False,
+#                     "choose 'train' or 'test'")
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")

@@ -63,7 +63,7 @@ class GridCellsRNNCell(snt.RNNCore):
         self._nh_embed = nh_embed
         self._nh_lstm = nh_lstm
         self._nh_bottleneck = nh_bottleneck
-        self._dropoutrates_bottleneck = dropoutrates_bottleneck
+        self.dropoutrates_bottleneck=None,
         self._bottleneck_weight_decay = bottleneck_weight_decay
         self._bottleneck_has_bias = bottleneck_has_bias
         self._init_weight_disp = init_weight_disp
@@ -126,18 +126,15 @@ class GridCellsRNNCell(snt.RNNCore):
         lstm_inputs = conc_inputs
         # LSTM
         lstm_output, next_state = self._lstm(lstm_inputs, prev_state)
-        # print("lstm output shape:", lstm_output.shape())
         # Bottleneck
         bottleneck = self.bottleneck_layer(lstm_output)
 
         if self.training and self._dropoutrates_bottleneck is not None:
             # tf.compat.v1.logging.info("Adding dropout layers")
-            print("Adding dropout layers in Network")
             n_scales = len(self._dropoutrates_bottleneck)  # number of partition
             scale_pops = tf.split(bottleneck, n_scales, axis=1)  # partitioned bottleneck
             dropped_pops = [tf.nn.dropout(pop, 1 - (rate), name="dropout")
-                            for rate, pop in zip(self._dropoutrates_bottleneck,
-                                                 scale_pops)]  # each partition with respective dropout rate
+                            for rate, pop in zip(self._dropoutrates_bottleneck, scale_pops)]  # each partition with respective dropout rate
             bottleneck = tf.concat(dropped_pops, axis=1)
         # Outputs
         ens_outputs = [self.output_pc_layer(bottleneck), self.output_hd_layer(bottleneck)]  # two ens: place and HD
@@ -233,33 +230,101 @@ class GridCellsRNN(snt.Module):
 
 class VisionModule(snt.Module):
     """Vision module to produce place cell and head direction cell activity patterns"""
-    def __init__(self, name="vision_module"):
+    def __init__(self,
+                 target_ensembles,
+                 nh_bottleneck,
+                 if_simple=True,
+                 dropoutrates_bottleneck=None,
+                 bottleneck_weight_decay=0.0,
+                 bottleneck_has_bias=False,
+                 init_weight_disp=0.0,
+                 training=False,
+                 name="vision_module"):
         super(VisionModule, self).__init__(name=name)
-        ch_nums = [16, 32, 32]
-        self.convs = snt.Conv2D(output_channels=16,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
-        self.conv2 = snt.Conv2D(output_channels=32,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
-        self.conv3 = snt.Conv2D(output_channels=32,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
+        self._target_ensembles = target_ensembles
+        self._nh_bottleneck = nh_bottleneck
+        self._dropoutrates_bottleneck = dropoutrates_bottleneck
+        self._bottleneck_weight_decay = bottleneck_weight_decay
+        self._bottleneck_has_bias = bottleneck_has_bias
+        self._init_weight_disp = init_weight_disp
+        self.training = training
+        self.simpleNN = if_simple
+        self.conv_seq = []
+
+        # convolutional layers
+        if self.simpleNN:
+            self.conv_seq.append(snt.Conv2D(output_channels=16,
+                                            kernel_shape=8,
+                                            stride=4,
+                                            padding='SAME'))
+            self.conv_seq.append(snt.Conv2D(output_channels=32,
+                                            kernel_shape=4,
+                                            stride=2,
+                                            padding='SAME'))
+        else:
+            self.num_res = 2  # two res block
+            for num_ch in [16, 32, 32]:
+                self.conv_seq.append(snt.Conv2D(output_channels=num_ch,
+                                                kernel_shape=3,
+                                                stride=1,
+                                                padding='SAME'))
+
+        # fully connected layer: the same as rnncell
+        self.bottleneck_layer = snt.Linear(self._nh_bottleneck,
+                                           with_bias=self._bottleneck_has_bias,
+                                           name="bottleneck")
+        ens_pc, ens_hd = self._target_ensembles
+        self.output_pc_layer = snt.Linear(
+            ens_pc.n_cells,
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="pc_logits")
+        self.output_hd_layer = snt.Linear(
+            ens_hd.n_cells,
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="hd_logits")
 
     def __call__(self, frames, training=False):
         """
         Args:
             frames: visual inputs list [Bx(L,W,3)]
-            vels:    Translational and angular velocities [BxTxV]
             training: Activates and deactivates dropout
 
         Returns:
             [logits_i]:
-                logits_i: Logits predicting i-th ensemble activations (BxTxN_i)
+            logits_i: Logits predicting i-th ensemble activations (BxTxN_i)
         """
+        if self.simpleNN:
+            for i, conv_layer in enumerate(self.conv_seq):
+                frames = conv_layer(frames)
+                frames = tf.nn.relu(frames)
+        else:
+            for i, conv_layer in enumerate(self.conv_seq):
+                frames = conv_layer(frames)
+                frames = tf.nn.max_pool2d(frames, ksize=3, strides=2, padding="SAME")
+                for j in range(self.num_res):
+                    res_input = frames
+                    frames = tf.nn.relu(frames)
+                    frames = conv_layer(frames)
+                    frames = tf.nn.relu(frames)
+                    frames = conv_layer(frames)
+                    frames += res_input
+
+        conv_output = tf.nn.relu(frames)
+        bottleneck = self.bottleneck_layer(conv_output)
+
+        if self.training and self._dropoutrates_bottleneck is not None:
+            # tf.compat.v1.logging.info("Adding dropout layers")
+            n_scales = len(self._dropoutrates_bottleneck)  # number of partition
+            scale_pops = tf.split(bottleneck, n_scales, axis=1)  # partitioned bottleneck
+            dropped_pops = [tf.nn.dropout(pop, 1 - (rate), name="dropout")
+                            for rate, pop in zip(self._dropoutrates_bottleneck, scale_pops)]  # each partition with respective dropout rate
+            bottleneck = tf.concat(dropped_pops, axis=1)
+        # Outputs
+        ens_outputs = [self.output_pc_layer(bottleneck), self.output_hd_layer(bottleneck)]  # two ens: place and HD
 
 
 class GridCellsVisionRNN(snt.Module):

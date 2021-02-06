@@ -32,7 +32,7 @@ import time
 
 matplotlib.use('Agg')
 
-import dataset_reader_new as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
+import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
 import model_new as model    # pylint: disable=g-bad-import-order
 import scores_new as scores    # pylint: disable=g-bad-import-order
 import utils_new as utils   # pylint: disable=g-bad-import-order
@@ -47,7 +47,7 @@ flags.DEFINE_string("task_root",
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
-flags.DEFINE_float("task_env_size", 2.2,
+flags.DEFINE_float("task_env_size", 2.5,
                    "Environment size (meters).")
 flags.DEFINE_list("task_n_pc", [256],
                   "Number of target place cells.")
@@ -82,12 +82,12 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 10, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 10,
+flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 1000,
                      "Number of optimization steps per epoch.")
 flags.DEFINE_integer("training_minibatch_size", 10,
                      "Size of the training minibatch.")
-flags.DEFINE_integer("training_evaluation_minibatch_size", 40,
+flags.DEFINE_integer("training_evaluation_minibatch_size", 4000,
                      "Size of the minibatch during evaluation.")
 flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients",
                     "Function for gradient clipping.")
@@ -109,8 +109,14 @@ flags.DEFINE_string("saver_results_directory",
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
-flags.DEFINE_integer("saver_pdf_time", 5,
+flags.DEFINE_integer("saver_pdf_time", 50,
                      "frequency to save a new pdf result")
+
+# Switch mode: training or test
+# flags.DEFINE_boolean("test",
+#                      # "/home/learning/Documents/kejia/grid-cells/result",
+#                      False,
+#                      "choose 'train' or 'test'")
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")
@@ -125,7 +131,7 @@ def train():
     # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
-    data_root = FLAGS.task_root + '/data'
+    data_root = FLAGS.task_root + '/dm_lab_data'
     data_reader = dataset_reader.DataReader(
             FLAGS.task_dataset_info, root=data_root, num_threads=4)
     # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
@@ -164,7 +170,7 @@ def train():
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
     def prepare_data(traj):
-        init_pos, init_hd, ego_vel, target_pos, target_hd = traj
+        init_pos, init_hd, ego_vel, target_pos, target_hd= traj
         # inputs
         input_tensors = []
         if FLAGS.task_velocity_inputs:
@@ -255,7 +261,7 @@ def train():
                                             masks_parameters)
 
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
-    # @tf.function
+    @tf.function
     def train_step(targets, inputs, init):
         # print("start tf function")
         with tf.GradientTape() as tape:
@@ -305,11 +311,11 @@ def train():
     log.addHandler(fh)
 
     # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn, step=tf.Variable(0))
-    check_dir = FLAGS.saver_results_directory + "/model/ckpt_py3" + time.strftime("%m-%d_%H:%M", time.localtime())
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn)
+    check_dir = FLAGS.saver_results_directory + "/model/ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
 
     manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
-                                         checkpoint_name='model_py3.ckpt')
+                                         checkpoint_name='model_dmlab.ckpt')
 
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
@@ -327,7 +333,6 @@ def train():
 
         log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                  np.mean(loss_acc), np.std(loss_acc))
-        checkpoint.step.assign_add(1)
         # tf.compat.v1.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
         #                           np.mean(loss_acc), np.std(loss_acc))
         if epoch % FLAGS.saver_eval_time == 0:
@@ -349,9 +354,8 @@ def train():
 
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
-                filename = 'rates_and_sac_latest_hd_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
-                save_path = manager.save()
-                log.info("Saved checkpoint for epoch {}: {}".format(int(checkpoint.step), save_path))
+                filename = 'rates_and_sac_latest_hd_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                manager.save()
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
@@ -363,7 +367,6 @@ def train():
             grid_mask[grid_scores_60 >= 0.37] = 1
             num_grid_cells = np.sum(grid_mask)
             log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
-
 
 
 if __name__ == '__main__':
