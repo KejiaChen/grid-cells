@@ -22,25 +22,7 @@ from __future__ import print_function
 import collections
 import os
 import tensorflow as tf
-import tree as nest
-from absl import app
-from absl import flags
 
-import sys
-# comment these lines when run train.py
-# Task config
-# flags.DEFINE_string("task_dataset_info", "square_room",
-#                     "Name of the room in which the experiment is performed.")
-# flags.DEFINE_string("task_root",
-#                     "/home/learning/Documents/kejia/grid-cells/data",
-#                     "Dataset path.")
-# # flags.DEFINE_integer("use_data_files", 10,
-# #                      "Number of files to read")
-# flags.DEFINE_integer("training_minibatch_size", 10,
-#                      "Size of the training minibatch.")
-# FLAGS = flags.FLAGS
-# FLAGS(sys.argv)
-# comment these lines when run train.py
 
 DatasetInfo = collections.namedtuple(
             'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
@@ -211,26 +193,3 @@ class DataReader(object):
         return reader
 
 
-# # comment these lines when run train.py
-# if __name__ == '__main__':
-# #     dataset = tf.data.Dataset.range(10)
-# #     for i in range(4):
-# #         dataset = dataset.shuffle(buffer_size=10)
-# #         dataset = dataset.take(3)
-# #         print(list(dataset.as_numpy_iterator()))
-# #
-#     dataset_info = _DATASETS[FLAGS.task_dataset_info]
-#     with tf.device('/cpu'):
-#         file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
-#     # print(file_names)
-#     data_reader = DataReader(FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
-#     for i in range(100):
-#         train_traj1 = data_reader.read(batch_size=1)  # tuple of data
-#         # init_pos1, init_hd1, ego_vel1, target_pos1, target_hd1 = train_traj1
-#         train_traj2 = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-#         print(i)
-#     # init_pos2, init_hd2, ego_vel2, target_pos2, target_hd2 = train_traj2
-#     # print(type(init_pos))
-#     # print(init_pos)
-#     print('range', data_reader.get_coord_range())
-# comment these lines when run train.py
