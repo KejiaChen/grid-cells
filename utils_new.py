@@ -218,3 +218,30 @@ def get_scores_and_plot(scorer,
             np.asarray(map(np.mean, max_60_mask)),  # Why do we need this?
             np.asarray(map(np.mean, max_90_mask)))
 
+
+def plot_trajectories(target_trajectory, decode_trajectory, num, directory, filename, axis_min, axis_max):
+    size = np.size(target_trajectory, 0) - 1
+    # id = int(np.ceil(size*np.random.rand(num)))  # select 10 trajctories randomly
+    # size = 10
+    cols = 5
+    rows = int(np.ceil(num / cols))
+    # fig = plt.figure()
+    fig, ax = plt.subplots(rows, cols, sharex='col', sharey='row', figsize=(15, 6))
+    for i in range(rows):
+        for j in range(cols):
+            # fig, axis = plt.subplots(rows, cols, i+1, sharex='col', sharey='row')
+            index = (i-1)*cols + j
+            target_x = target_trajectory[index, :, 0]
+            target_y = target_trajectory[index, :, 1]
+            decode_x = decode_trajectory[index, :, 0]
+            decode_y = decode_trajectory[index, :, 1]
+            ax[i][j].plot(target_x, target_y, color='blue', linewidth=3.0)
+            ax[i][j].plot(decode_x, decode_y, color='green', linewidth=3.0)
+            ax[i][j].set_xlim((axis_min, axis_max))
+            ax[i][j].set_ylim((axis_min, axis_max))
+    fig.tight_layout()
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with PdfPages(os.path.join(directory, filename), "w") as f:
+        plt.savefig(f, format="pdf")
+    plt.close(fig)

@@ -58,12 +58,12 @@ def _get_dataset_files(dateset_info, root):
     basepath = dateset_info.basepath
     base = os.path.join(root, basepath)
     num_files = dateset_info.size
-    # use_num_files = 1
+    use_num_files = 10
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
             os.path.join(base, template.format(i, num_files - 1))
-            for i in range(num_files)
-            # for i in range(use_num_files)
+            # for i in range(num_files)
+            for i in range(use_num_files)
     ]
 
 
@@ -119,7 +119,7 @@ class DataReader(object):
             file_names = _get_dataset_files(self._dataset_info, root)
             # test_filename = "/home/learning/Documents/kejia/grid-cells/data/square_room_100steps_2.2m_1000000/0001-of-0099.tfrecord"
             # filename_queue = tf.data.Dataset.from_tensor_slices(file_names)  # create filename queue
-            self._reader = tf.data.TFRecordDataset(test_filename)
+            self._reader = tf.data.TFRecordDataset(file_names)
             # self._reader = self._reader.repeat(num_threads)
 
             self._reader = self._make_read_op(self._reader, capacity, seed)
@@ -211,7 +211,7 @@ class DataReader(object):
         return reader
 
 
-# # comment these lines when run train.py
+# # # comment these lines when run train.py
 # if __name__ == '__main__':
 # #     dataset = tf.data.Dataset.range(10)
 # #     for i in range(4):

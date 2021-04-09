@@ -233,92 +233,104 @@ class GridCellsRNN(snt.Module):
 
 class VisionModule(snt.Module):
     """Vision module to produce place cell and head direction cell activity patterns"""
-    def __init__(self, name="vision_module"):
+    def __init__(self,
+                 init_weight_disp,
+                 name="vision_module"):
         super(VisionModule, self).__init__(name=name)
-        ch_nums = [16, 32, 32]
-        self.convs = snt.Conv2D(output_channels=16,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
-        self.conv2 = snt.Conv2D(output_channels=32,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
-        self.conv3 = snt.Conv2D(output_channels=32,
-                                kernel_shape=3,
-                                stride=1,
-                                padding='SAME')
+        self.initial_pc = snt.Linear(self._nh_lstm, name="vision_state_init")
+        self.initial_hd = snt.Linear(self._nh_lstm, name="vision_cell_init")
+        self.bottleneck_layer = snt.Linear(self._nh_bottleneck,
+                                           with_bias=self._bottleneck_has_bias,
+                                           # new version of sonnet has no inner regularizers factor
+                                           # L2 regularization is added to total_loss in train.py
+                                           # regularizers={
+                                           #     "w": tf.keras.regularizers.l2(
+                                           #         0.5 * (self._bottleneck_weight_decay))},
+                                           name="bottleneck")
+        self._dropoutrates_bottleneck = 0.95
+        ens_pc, ens_hd = self._target_ensembles
+        self._init_weight_disp = init_weight_disp
 
-    def __call__(self, frames, training=False):
+        self.output_pc_layer = snt.Linear(
+            ens_pc.n_cells,
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="pc_logits")
+
+        self.output_hd_layer = snt.Linear(
+            ens_hd.n_cells,
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="hd_logits")
+
+    def __call__(self, frame, training=False):
         """
         Args:
-            frames: visual inputs list [Bx(L,W,3)]
-            vels:    Translational and angular velocities [BxTxV]
-            training: Activates and deactivates dropout
+            frames: visual inputs list (63, 64,3), with values in [-1,1]
+            training: whether to update newtork; activates and deactivates dropout
 
         Returns:
-            [logits_i]:
-                logits_i: Logits predicting i-th ensemble activations (BxTxN_i)
+
         """
+        # Convert to floats.
+        frame = tf.to_float(frame)
+
+        frame /= 255  # [-1,1]
+        # conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")  # shape ( ,BN)
+
+        # convnet from IMPALA
+        with tf.variable_scope('convnet'):
+            conv_out = frame
+            for i, (num_ch, num_blocks) in enumerate([(16, 2), (32, 2), (32, 2)]):
+                # Downscale.
+                conv_out = snt.Conv2D(num_ch, 3, stride=1, padding='SAME')(conv_out)
+                conv_out = tf.nn.pool(
+                    conv_out,
+                    window_shape=[3, 3],
+                    pooling_type='MAX',
+                    padding='SAME',
+                    strides=[2, 2])
+
+                # Residual block(s).
+                for j in range(num_blocks):
+                    with tf.variable_scope('residual_%d_%d' % (i, j)):
+                        block_input = conv_out
+                        conv_out = tf.nn.relu(conv_out)
+                        conv_out = snt.Conv2D(num_ch, 3, stride=1, padding='SAME')(conv_out)
+                        conv_out = tf.nn.relu(conv_out)
+                        conv_out = snt.Conv2D(num_ch, 3, stride=1, padding='SAME')(conv_out)
+                        conv_out += block_input
+
+        conv_out = tf.nn.relu(conv_out)
+        conv_out = snt.BatchFlatten()(conv_out)
+
+        conv_out = snt.Linear(256)(conv_out)
+        conv_out = tf.nn.relu(conv_out)
+
+        # Bottleneck
+        bottleneck = self.bottleneck_layer(conv_out)
+
+        # if not training and self._dropoutrates_bottleneck is not None:
+        #     # tf.compat.v1.logging.info("Adding dropout layers")
+        #     print("Adding dropout layers in Network")
+        #     n_scales = len(self._dropoutrates_bottleneck)  # number of partition
+        #     scale_pops = tf.split(bottleneck, n_scales, axis=1)  # partitioned bottleneck
+        #     dropped_pops = [tf.nn.dropout(pop, 1 - (rate), name="dropout")
+        #                     for rate, pop in zip(self._dropoutrates_bottleneck,
+        #                                          scale_pops)]  # each partition with respective dropout rate
+        #     bottleneck = tf.concat(dropped_pops, axis=1)
+
+        # Outputs place and HD ensembles
+        ens_pos_outputs = self.output_pc_layer(bottleneck)
+        ens_pos_outputs = tf.transpose(ens_pos_outputs, perm=[1, 0, 2])
+        ens_hd_outputs = self.output_hd_layer(bottleneck)
+        ens_hd_outputs = tf.transpose(ens_hd_outputs, perm=[1, 0, 2])
+
+        ens_outputs = tf.tuple([ens_pos_outputs, ens_hd_outputs])
+        bottleneck = tf.transpose(bottleneck, perm=[1, 0, 2])
+
+        return ens_outputs, bottleneck
 
 
-class GridCellsVisionRNN(snt.Module):
-    """RNN computes place and head-direction cell predictions from velocities and visual inputs."""
-
-    def __init__(self, rnn_cell, nh_lstm, name="grid_cell_supervised"):
-        super(GridCellsVisionRNN, self).__init__(name=name)
-        self._core = rnn_cell  # here lstm_cell
-        self._nh_lstm = nh_lstm  # Size of LSTM cell.
-        self.initial_pc = snt.Linear(self._nh_lstm, name="state_init")
-        self.initial_hd = snt.Linear(self._nh_lstm, name="cell_init")
-
-    def __call__(self, init_conds, vels, training=False):
-        """Outputs place, and head direction cell predictions from velocity inputs.
-
-        Args:
-            init_conds: Initial conditions given by ensemble activatons, list [BxN_i]
-            vels:    Translational and angular velocities [BxTxV]
-            training: Activates and deactivates dropout
-
-        Returns:
-            [logits_i]:
-                logits_i: Logits predicting i-th ensemble activations (BxTxN_i)
-        """
-        # Calculate initialization for LSTM. Concatenate pc and hdc activations
-        concat_init = tf.concat(init_conds, axis=1)
-
-        init_lstm_state = self.initial_pc(concat_init)
-        init_lstm_cell = self.initial_hd(concat_init)
-        inital_lstmstate = snt.LSTMState(init_lstm_state, init_lstm_cell)
-        self._core.training = training
-
-        # Run LSTM
-        # The defualt shape of dynamic_unroll.input_sequence is [input_squence, batch_size, input_size],
-        # while vels.shape = [batch_size, input_squence, input_size]
-        input_seq = (tf.transpose(vels, perm=[1, 0, 2]),)
-        output_seq, final_state = snt.dynamic_unroll(core=self._core,
-                                                     input_sequence=input_seq,
-                                                     # initial_state=(init_lstm_state,
-                                                     #                init_lstm_cell)
-                                                     initial_state=inital_lstmstate)
-        # x = tf.keras.Input((vels,))
-        # layer = tf.keras.layers.RNN(cell=self._core, return_state=True, time_major=False)
-        # output_seq, final_state = layer(inputs=x,
-        #                                 initial_state=(init_lstm_state,
-        #                                                init_lstm_cell))
-
-        ens_targets = output_seq[:-2]
-        # print("target", ens_targets)
-        ens_cell_targets = (ens_targets[0])[0]
-        ens_cell_targets = tf.transpose(ens_cell_targets, perm=[1, 0, 2])
-        ens_hd_targets = (ens_targets[0])[1]
-        ens_hd_targets = tf.transpose(ens_hd_targets, perm=[1, 0, 2])
-        ens_targets = tf.tuple([ens_cell_targets, ens_hd_targets])
-        bottleneck = tf.transpose(output_seq[-2], perm=[1, 0, 2])
-        lstm_output = tf.transpose(output_seq[-1], perm=[1, 0, 2])
-        # Return
-        return (ens_targets, bottleneck, lstm_output), final_state
-
-    def get_all_variables(self):
-        return super(GridCellsRNN, self).trainable_variables
-        # + self._core.())

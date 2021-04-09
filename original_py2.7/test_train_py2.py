@@ -179,11 +179,11 @@ def train():
             target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
 
     # test the decoding part
-    # diff = []
-    # euclidean_targets = utils.decode_targets(ensembles_targets, place_cell_ensembles, head_direction_ensembles)
-    # euclidean_pos = tf.reshape(euclidean_targets[0], [10, 100, 2])
-    # diff = target_pos - euclidean_pos
-    # diff.append(tf.reduce_mean(target_pos - euclidean_pos))
+    diff = []
+    euclidean_targets = utils.decode_targets(ensembles_targets, place_cell_ensembles, head_direction_ensembles)
+    euclidean_pos = tf.reshape(euclidean_targets[0], [10, 100, 2])
+    diff = target_pos - euclidean_pos
+    diff.append(tf.reduce_mean(target_pos - euclidean_pos))
 
     # Estimate future encoding of place and hd ensembles inputing egocentric vels ?to initialize three outputs?
     outputs, _ = rnn(initial_conds, inputs, training=True)
@@ -285,7 +285,7 @@ def train():
                             'bottleneck': bottleneck,
                             'lstm': lstm_output,
                             'pos_xy': target_pos,
-                            # 'decode_target':euclidean_pos,
+                            'decode_target':euclidean_pos,
                             # 'ensemble_pos': ensembles_logits[0]
                     })
                     eval_target_pos_list.append(target_pos)
@@ -302,7 +302,7 @@ def train():
 
                     saver.save(utils.get_session(sess), FLAGS.saver_results_directory+modelname)  # save the model
 
-                # utils.plot_trajectories(res['pos_xy'], res['decode_target'], 10, FLAGS.saver_results_directory, plotname)
+                utils.plot_trajectories(res['pos_xy'], res['decode_target'], 10, FLAGS.saver_results_directory, plotname)
 
                 # if epoch % FLAGS.saver_model_time == 0:
                 #     save_sess = tf.Session()

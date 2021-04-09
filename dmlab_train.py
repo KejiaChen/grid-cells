@@ -293,7 +293,7 @@ def train():
         return ensembles_logits, bottleneck, lstm_output
 
     # logging
-    log_name = 'tensorflow_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime())
+    log_name = 'tensorflow_py3.7_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime())
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
@@ -355,7 +355,10 @@ def train():
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
                 filename = 'rates_and_sac_latest_hd_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                 manager.save()
+
+            utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory, plotname, axis_min=-1.25, axis_max=1.25)
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[

@@ -28,6 +28,7 @@ from absl import flags
 import PIL.Image as Image
 
 import sys
+import utils_new as utils
 # comment these lines when run train.py
 # Task config
 # flags.DEFINE_string("task_dataset_info", "square_room",
@@ -35,10 +36,17 @@ import sys
 # flags.DEFINE_string("task_root",
 #                     "/home/learning/Documents/kejia/grid-cells/dm_lab_data",
 #                     "Dataset path.")
-# flags.DEFINE_integer("use_data_files", 10,
+# flags.DEFINE_integer("use_data_files", 100,
 #                      "Number of files to read")
 # flags.DEFINE_integer("training_minibatch_size", 10,
 #                      "Size of the training minibatch.")
+# flags.DEFINE_float("coord_range",
+#                     2.5,
+#                     "coordinate range of the dmlab room")
+# flags.DEFINE_string("saver_results_directory",
+#                     "/home/learning/Documents/kejia/grid-cells/result",
+#                     # None,
+#                     "Path to directory for saving results.")
 # FLAGS = flags.FLAGS
 # FLAGS(sys.argv)
 # comment these lines when run train.py
@@ -48,10 +56,10 @@ DatasetInfo = collections.namedtuple(
 
 _DATASETS = dict(
         square_room=DatasetInfo(
-            basepath='square_room_100steps_2.5m_novision',
+            basepath='square_room_100steps_2.5m_novision_100',
             size=100,  # 100 files
             sequence_length=100,  # 100 steps
-            coord_range=((0, 2.5), (0, 2.5))),)  # coordinate range for x and y
+            coord_range=((-1.25, 1.25), (-1.25, 1.25))),)  # coordinate range for x and y
 
 
 def _get_dataset_files(dateset_info, root):
@@ -60,11 +68,11 @@ def _get_dataset_files(dateset_info, root):
     base = os.path.join(root, basepath)
     num_files = dateset_info.size
     # num_files = 100
-    use_num_files = 100
+    use_num_files = 10
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
             os.path.join(base, template.format(i, num_files - 1))
-            for i in range(use_num_files)
+            for i in range(num_files)
             # for i in range(use_num_files)
     ]
 
@@ -192,59 +200,70 @@ class DataReader(object):
 
         return reader
 
+    # def position_scale(map_pos):
+    #     # x_scale = 2.5/(883-116)
+    #     x_scale = FLAGS.coord_range / (1083 - 116)
+    #     # y_scale = 2.5 / (1083 - 116)
+    #     real_pos = -0.5 * FLAGS.coord_range + map_pos * x_scale  # rescale position to (-1.25, 1.25)
+    #     return real_pos
 
+    def fix_temp_traj(traj):
+        init_pos, init_hd, ego_vel, target_pos, target_hd = traj
+        target_pos - 0.300
 # # comment these lines when run train.py
-if __name__ == '__main__':
-    # dataset = tf.data.Dataset.range(10)
-    # for i in range(4):
-    #     dataset = dataset.shuffle(buffer_size=10)
-    #     dataset = dataset.take(3)
-    #     print(list(dataset.as_numpy_iterator()))
-
-    dataset_info = _DATASETS[FLAGS.task_dataset_info]
-    # file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
-    # file_names = ['/home/learning/Documents/kejia/grid-cells/dm_lab_data/square_room_100steps_2.5m_1000000/0001-of-0099.tfrecord']
-    #               # '/home/learning/Documents/kejia/grid-cells/dm_lab_data/square_room_100steps_2.5m_1000000/0002-of-0099.tfrecord']
-    # raw_image_dataset = tf.data.TFRecordDataset(file_names)
-    # sequence_length = 100
-
-    # feature_map = {
-    #     'init_pos': tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
-    #     'init_hd': tf.io.FixedLenFeature(shape=[1], dtype=tf.float32),
-    #     'ego_vel': tf.io.FixedLenFeature(shape=[sequence_length, 3], dtype=tf.float32),
-    #     'target_pos': tf.io.FixedLenFeature(shape=[sequence_length, 2], dtype=tf.float32),
-    #     'target_hd': tf.io.FixedLenFeature(shape=[sequence_length, 1], dtype=tf.float32),
-    #     'image': tf.io.FixedLenFeature([], tf.string),
-    # }
+# if __name__ == '__main__':
+    # # dataset = tf.data.Dataset.range(10)
+    # # for i in range(4):
+    # #     dataset = dataset.shuffle(buffer_size=10)
+    # #     dataset = dataset.take(3)
+    # #     print(list(dataset.as_numpy_iterator()))
     #
-    # def _parse_image_function(example_proto):
-    #     # Parse the input tf.Example proto using the dictionary above.
-    #     return tf.io.parse_single_example(example_proto, feature_map)
+    # dataset_info = _DATASETS[FLAGS.task_dataset_info]
+    # # file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
+    # # file_names = ['/home/learning/Documents/kejia/grid-cells/dm_lab_data/square_room_100steps_2.5m_1000000/0001-of-0099.tfrecord']
+    # #               # '/home/learning/Documents/kejia/grid-cells/dm_lab_data/square_room_100steps_2.5m_1000000/0002-of-0099.tfrecord']
+    # # raw_image_dataset = tf.data.TFRecordDataset(file_names)
+    # # sequence_length = 100
     #
-    # parsed_image_dataset = raw_image_dataset.map(_parse_image_function)
-    # reader_batch = parsed_image_dataset.batch(batch_size=10)
+    # # feature_map = {
+    # #     'init_pos': tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
+    # #     'init_hd': tf.io.FixedLenFeature(shape=[1], dtype=tf.float32),
+    # #     'ego_vel': tf.io.FixedLenFeature(shape=[sequence_length, 3], dtype=tf.float32),
+    # #     'target_pos': tf.io.FixedLenFeature(shape=[sequence_length, 2], dtype=tf.float32),
+    # #     'target_hd': tf.io.FixedLenFeature(shape=[sequence_length, 1], dtype=tf.float32),
+    # #     'image': tf.io.FixedLenFeature([], tf.string),
+    # # }
+    # #
+    # # def _parse_image_function(example_proto):
+    # #     # Parse the input tf.Example proto using the dictionary above.
+    # #     return tf.io.parse_single_example(example_proto, feature_map)
+    # #
+    # # parsed_image_dataset = raw_image_dataset.map(_parse_image_function)
+    # # reader_batch = parsed_image_dataset.batch(batch_size=10)
+    # #
+    # # i = 0
+    # # for data in reader_batch.take(1):  # reader_batch.take(1) has only one element
+    # # # for data in parsed_image_dataset:
+    # #     # print(type(batch))
+    # #     in_pos = data['init_pos']
+    # #     in_hd = data['init_hd']
+    # #     ego_vel = data['ego_vel']
+    # #     target_pos = data['target_pos']
+    # #     target_hd = data['target_hd']
+    # #     image = data['image']
+    # #     i += 1
+    # #
+    # # print("end iteration")
+    # # print("read dataset")
     #
-    # i = 0
-    # for data in reader_batch.take(1):  # reader_batch.take(1) has only one element
-    # # for data in parsed_image_dataset:
-    #     # print(type(batch))
-    #     in_pos = data['init_pos']
-    #     in_hd = data['init_hd']
-    #     ego_vel = data['ego_vel']
-    #     target_pos = data['target_pos']
-    #     target_hd = data['target_hd']
-    #     image = data['image']
-    #     i += 1
-    #
-    # print("end iteration")
-    # print("read dataset")
-
-    # file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
-    # print(file_names)
+    # # file_names = _get_dataset_files(dataset_info, FLAGS.task_root)
+    # # print(file_names)
+    # plotname = 'trajectory_dmlab_test.pdf'
     # data_reader = DataReader(FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
     # for i in range(100):
     #     train_traj1 = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
-    # # init_pos1, init_hd1, ego_vel1, target_pos1, target_hd1 = train_traj1
+    #     init_pos1, init_hd1, ego_vel1, target_pos1, target_hd1 = train_traj1
+    #     utils.plot_trajectories(target_pos1, target_pos1, 10, FLAGS.saver_results_directory, plotname)
     # #     train_traj2 = data_reader.read(batch_size=FLAGS.training_minibatch_size)  # tuple of data
     #     print(i)
     # # init_pos2, init_hd2, ego_vel2, target_pos2, target_hd2 = train_traj2
