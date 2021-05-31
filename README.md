@@ -48,8 +48,8 @@ The files contained in the repository are the following:
 
 The implementation requires an installation of
 [Python] version 3.7, and
-[TensorFlow](https://www.tensorflow.org/) version 1.12, and
-[Sonnet](https://github.com/deepmind/sonnet) version 1.27.
+[TensorFlow](https://www.tensorflow.org/) version 2.3.1, and
+[Sonnet](https://github.com/deepmind/sonnet) version 2.0.0.
 
 ```shell
 $ pip install tensorflow-gpu==2.3.1
@@ -76,11 +76,34 @@ An example training script can be executed from a python interpreter:
 $  python train.py --task_root='/home/kejia/grid-cells' --saver_results_directory='/home/kejia/grid-cells/result'
 ```
 
-## Todo list
-- [ ] change into python 3.7 and tensorflow 2 and sonnet 2
-- [ ] run with original datasets
-- [ ] run with pybullet simulation environments
-- [ ] parallel running
+## Deepmind Lab
+1. Build [DeepMind Lab](https://github.com/deepmind/lab.git) following [official build instructions](https://github.com/deepmind/lab/blob/master/docs/users/build.md). 
+Note that you may also need to install [bazel](https://docs.bazel.build/versions/master/install-ubuntu.html) (use the binary installer if google services are not available) and a specific version of python dev if it is not included in ```python3-dev``` :
+```
+sudo apt-get install python3.8-dev
+```
+
+2. Create datasets from deepmind lab
+```
+python dmlab_demo.py --map_name='map_10_0.txt' --data_root='/home/learning/Documents/kejia/grid-cells/dm_lab_data/' --dataset_size=100 --file_length=100 --eps_length=100 --coord_range=2.5
+```
+This will create a dataset from a dmlab enviroment define by the txt file. The dataset contains 100 files with 100 trajectories in each file. Each trajectory consists of 100 steps. The range of coordinates is (-1.25:1.25, -1.25:1.25). The dataset is stored in the ```data_root```.
+
+Note that the first and last file in the dataset may be incomplete, and thus need to be replaced.
+
+On the server, alternatively:
+```
+python dmlab_demo.py --map_name='map_10_0.txt' --data_root='/data/bing/kejia/dm_lab_data/' --dataset_size=100 --file_length=100 --eps_length=100 --coord_range=2.5
+```
+
+3. Train with dmlab
+```
+python dmlab_train.py --task_root='/home/learning/Documents/kejia/grid-cells' --saver_results_directory='/home/learning/Documents/kejia/grid-cells/result'
+```
+On the server, alternatively:
+```
+python dmlab_train.py --task_root='~/kejia/grid-cells' --saver_results_directory='/data/bing/kejia/result'
+```
 
 Disclaimer: This is not an official Google product.
 

@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import matplotlib
+import os
 import numpy as np
 import tensorflow as tf
 from absl import flags
@@ -33,7 +34,7 @@ import time
 matplotlib.use('Agg')
 
 import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
-import model_new as model    # pylint: disable=g-bad-import-order
+import model_new as model    # pylint: disable=g-bad-import
 import scores_new as scores    # pylint: disable=g-bad-import-order
 import utils_new as utils   # pylint: disable=g-bad-import-order
 
@@ -42,8 +43,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    "/home/learning/Documents/kejia/grid-cells",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells",
+                    None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -93,7 +94,6 @@ flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients"
                     "Function for gradient clipping.")
 flags.DEFINE_float("training_clipping", 1e-5,
                    "The absolute value to clip by.")
-
 flags.DEFINE_string("training_optimizer_class",
                     "tf.compat.v1.train.RMSPropOptimizer",
                     # "tf.keras.optimizers.RMSprop",
@@ -101,11 +101,13 @@ flags.DEFINE_string("training_optimizer_class",
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
                     "Defines a dict with opts passed to the optimizer.")
+flags.DEFINE_bool("train_with_vision", False,
+                  "Train with visual inputs from dmlab.")
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/result",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells/",
+                    None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
@@ -124,6 +126,8 @@ flags.mark_flag_as_required("saver_results_directory")
 FLAGS = flags.FLAGS
 FLAGS(sys.argv)
 
+FILE_PATH = os.path.realpath(__file__)
+FILE_DIR, _ = os.path.split(FILE_PATH)
 
 def train():
     """Training loop."""
@@ -131,9 +135,9 @@ def train():
     # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
-    data_root = FLAGS.task_root + '/dm_lab_data'
+    data_root = FLAGS.saver_results_directory + '/dm_lab_data'
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=data_root, num_threads=4)
+            FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.train_with_vision)
     # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
 
 
@@ -170,7 +174,10 @@ def train():
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
     def prepare_data(traj):
-        init_pos, init_hd, ego_vel, target_pos, target_hd= traj
+        if FLAGS.train_with_vision:
+            init_pos, init_hd, ego_vel, target_pos, target_hd,   = traj
+        else:
+            init_pos, init_hd, ego_vel, target_pos, target_hd= traj
         # inputs
         input_tensors = []
         if FLAGS.task_velocity_inputs:
@@ -312,7 +319,7 @@ def train():
 
     # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn)
-    check_dir = FLAGS.saver_results_directory + "/model/ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
+    check_dir = FLAGS.saver_results_directory + "/result/model/ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
 
     manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
                                          checkpoint_name='model_dmlab.ckpt')
@@ -358,13 +365,13 @@ def train():
                 plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                 manager.save()
 
-            utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory, plotname, axis_min=-1.25, axis_max=1.25)
+            utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory+'/result', plotname, axis_min=-1.25, axis_max=1.25)
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
                 'btln_90_separation'] = utils.get_scores_and_plot(
                 latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
-                FLAGS.saver_results_directory, filename)
+                FLAGS.saver_results_directory+'/result', filename)
             grid_scores_60 = grid_scores['btln_60']
             grid_mask = np.zeros_like(grid_scores_60)
             grid_mask[grid_scores_60 >= 0.37] = 1
