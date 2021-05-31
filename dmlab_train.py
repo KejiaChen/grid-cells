@@ -176,7 +176,7 @@ def train():
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
     def prepare_data(traj):
-        if FLAGS.train_with_vision:
+        if FLAGS.dataset_with_vision:
             init_pos, init_hd, ego_vel, target_pos, target_hd, frame = traj
         else:
             init_pos, init_hd, ego_vel, target_pos, target_hd = traj
@@ -307,6 +307,7 @@ def train():
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
                         filename=FLAGS.task_root + '/log/' + log_name + '.log',
+                        # filename='/log/' + log_name + '.log',
                         filemode='w')
     # logging.info('please log something')
     log = logging.getLogger('tensorflow')
@@ -349,7 +350,10 @@ def train():
             for _ in range(FLAGS.training_evaluation_minibatch_size //
                            FLAGS.training_minibatch_size):
                 train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
-                init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+                if FLAGS.dataset_with_vision:
+                    init_pos, init_hd, ego_vel, target_pos, target_hd, frame = train_traj
+                else:
+                    init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
                 conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
                 eval_ensembles_logits, eval_bottleneck, eval_lstm_output = eval_step(ensembles_targets, conc_inputs,
                                                                                      initial_conds)

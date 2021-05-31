@@ -98,11 +98,11 @@ python dmlab_demo.py --map_name='map_10_0.txt' --data_root='/data/bing/kejia/dm_
 
 3. Train with dmlab
 ```
-python dmlab_train.py --task_root='/home/learning/Documents/kejia/grid-cells' --saver_results_directory='/home/learning/Documents/kejia/grid-cells/result'
+python dmlab_train.py --task_root='/home/learning/Documents/kejia/grid-cells' --saver_results_directory='/home/learning/Documents/kejia/grid-cells/' --dataset_with_vision=False --train_with_vision=False
 ```
 On the server, alternatively:
 ```
-python dmlab_train.py --task_root='~/kejia/grid-cells' --saver_results_directory='/data/bing/kejia/result'
+python dmlab_train.py --task_root='home/bing_TUM/kejia/grid-cells' --saver_results_directory='/data/bing/kejia/' --dataset_with_vision=True --train_with_vision=False
 ```
 
 Disclaimer: This is not an official Google product.
