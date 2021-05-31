@@ -51,15 +51,15 @@ import utils_new as utils
 # FLAGS(sys.argv)
 # comment these lines when run train.py
 
-DatasetInfo = collections.namedtuple(
-            'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
-
-_DATASETS = dict(
-        square_room=DatasetInfo(
-            basepath='square_room_100steps_2.5m_novision_100',
-            size=100,  # 100 files
-            sequence_length=100,  # 100 steps
-            coord_range=((-1.25, 1.25), (-1.25, 1.25))),)  # coordinate range for x and y
+# DatasetInfo = collections.namedtuple(
+#             'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
+#
+# _DATASETS = dict(
+#         square_room=DatasetInfo(
+#             basepath='square_room_100steps_2.5m_novision_100',
+#             size=100,  # 100 files
+#             sequence_length=100,  # 100 steps
+#             coord_range=((-1.25, 1.25), (-1.25, 1.25))),)  # coordinate range for x and y
 
 
 def _get_dataset_files(dateset_info, root):
@@ -92,11 +92,16 @@ class DataReader(object):
             dataset,
             # use_size,
             root,
+            dataset_size=100,
+            file_length=100,
+            eps_length=100,
+            coord=2.5,
             # Queue params
             num_threads=4,
             capacity=256,
             min_after_dequeue=128,
-            seed=None):
+            seed=None,
+            vision=False):
         """Instantiates a DataReader object and sets up queues for data reading.
 
         Args:
@@ -118,12 +123,22 @@ class DataReader(object):
             ValueError: if the required version does not exist;
         """
 
-        if dataset not in _DATASETS:
-            raise ValueError('Unrecognized dataset {} requested. Available datasets '
-                             'are {}'.format(dataset, _DATASETS.keys()))
+        self.DatasetInfo = collections.namedtuple(
+            'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
+        self.data_folder = 'square_room_100steps_2.5m_novision_' + str(file_length)
+        self._DATASETS = dict(
+                    square_room=self.DatasetInfo(
+                        basepath=self.data_folder,
+                        size=dataset_size,  # 100 files
+                        sequence_length=eps_length,  # 100 steps
+                        coord_range=((-coord/2, coord/2), (-coord/2, coord/2))),)  # coordinate range for x and y
 
-        self._dataset_info = _DATASETS[dataset]
-        self._steps = _DATASETS[dataset].sequence_length
+        if dataset not in self._DATASETS:
+            raise ValueError('Unrecognized dataset {} requested. Available datasets '
+                             'are {}'.format(dataset, self._DATASETS.keys()))
+        self._dataset_info = self._DATASETS[dataset]
+        self._steps = self._DATASETS[dataset].sequence_length
+        self.vision = vision
 
         with tf.device('/cpu'):
             file_names = _get_dataset_files(self._dataset_info, root)
@@ -145,9 +160,9 @@ class DataReader(object):
         def preprocess_image(image):
             decode_image = Image.frombytes("RGBA", (160, 160), image.numpy())
             rgb_image = decode_image.convert('RGB')
-            resize_image = rgb_image.resize((64, 64))
-            # resize_image.save("test_image_rgb.png")
-            return resize_image
+            # resize_image = rgb_image.resize((64, 64))
+            rgb_image.save("test_image_rgb.png")
+            return rgb_image
 
         for data in reader_batch.take(1):  # reader_batch.take(1) has only one element
             # print(type(batch))
@@ -156,7 +171,9 @@ class DataReader(object):
             ego_vel = data['ego_vel']
             target_pos = data['target_pos']
             target_hd = data['target_hd']
-            # train_image = data["image"]  # [64, 64, 3], RGB
+            if self.vision:
+                image = data["image"]  # [64, 64, 3], RGB
+                return in_pos, in_hd, ego_vel, target_pos, target_hd, image
             # train_image = preprocess_image(raw_image)
         return in_pos, in_hd, ego_vel, target_pos, target_hd
 
@@ -188,6 +205,29 @@ class DataReader(object):
             #         shape=[],  # image
             #         dtype=tf.string),
         }
+        if self.vision:
+            feature_map = {
+                'init_pos':
+                    tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
+                'init_hd':
+                    tf.io.FixedLenFeature(shape=[1], dtype=tf.float32),  # shape=(?, 1)
+                'ego_vel':
+                    tf.io.FixedLenFeature(
+                        shape=[self._dataset_info.sequence_length, 3],  # shape=(?, 100, 3) for 100 steps
+                        dtype=tf.float32),
+                'target_pos':
+                    tf.io.FixedLenFeature(
+                        shape=[self._dataset_info.sequence_length, 2],  # shape=(?, 100, 2) for 100 steps
+                        dtype=tf.float32),
+                'target_hd':
+                    tf.io.FixedLenFeature(
+                        shape=[self._dataset_info.sequence_length, 1],  # shape=(?, 100, 1) for 100 steps
+                        dtype=tf.float32),
+                'image':
+                    tf.io.FixedLenFeature(
+                        shape=[],  # image
+                        dtype=tf.string),
+            }
 
         def read_and_decode(example_string):
             example = tf.io.parse_example(serialized=example_string, features=feature_map)
@@ -207,9 +247,10 @@ class DataReader(object):
     #     real_pos = -0.5 * FLAGS.coord_range + map_pos * x_scale  # rescale position to (-1.25, 1.25)
     #     return real_pos
 
-    def fix_temp_traj(traj):
-        init_pos, init_hd, ego_vel, target_pos, target_hd = traj
-        target_pos - 0.300
+    # def fix_temp_traj(traj):
+    #     init_pos, init_hd, ego_vel, target_pos, target_hd = traj
+    #     target_pos - 0.300
+
 # # comment these lines when run train.py
 # if __name__ == '__main__':
     # # dataset = tf.data.Dataset.range(10)
