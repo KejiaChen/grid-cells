@@ -68,6 +68,8 @@ flags.DEFINE_bool("task_velocity_inputs", True,
                   "Input velocity.")
 flags.DEFINE_list("task_velocity_noise", [0.0, 0.0, 0.0],
                   "Add noise to velocity.")
+flags.DEFINE_bool("dataset_with_vision", False,
+                  "Dataset contains images or not.")
 
 # Model config
 flags.DEFINE_integer("model_nh_lstm", 128, "Number of hidden units in LSTM.")
@@ -137,7 +139,7 @@ def train():
     # Create the motion models for training and evaluation
     data_root = FLAGS.saver_results_directory + '/dm_lab_data'
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.train_with_vision)
+            FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.dataset_with_vision)
     # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
 
 
@@ -175,9 +177,9 @@ def train():
 
     def prepare_data(traj):
         if FLAGS.train_with_vision:
-            init_pos, init_hd, ego_vel, target_pos, target_hd,   = traj
+            init_pos, init_hd, ego_vel, target_pos, target_hd, frame = traj
         else:
-            init_pos, init_hd, ego_vel, target_pos, target_hd= traj
+            init_pos, init_hd, ego_vel, target_pos, target_hd = traj
         # inputs
         input_tensors = []
         if FLAGS.task_velocity_inputs:

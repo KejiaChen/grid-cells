@@ -125,7 +125,10 @@ class DataReader(object):
 
         self.DatasetInfo = collections.namedtuple(
             'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
-        self.data_folder = 'square_room_100steps_2.5m_novision_' + str(file_length)
+        if vision:
+            self.data_folder = 'square_room_100steps_2.5m_' + 'vision_' + str(file_length)
+        else:
+            self.data_folder = 'square_room_100steps_2.5m_' + 'novision_' + str(file_length)
         self._DATASETS = dict(
                     square_room=self.DatasetInfo(
                         basepath=self.data_folder,
