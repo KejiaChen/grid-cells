@@ -307,7 +307,7 @@ def train():
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
                         # filename=FLAGS.task_root + '/log/' + log_name + '.log',
-                        filename='/log/' + log_name + '.log',
+                        filename='log/' + log_name + '.log',
                         filemode='w')
     # logging.info('please log something')
     log = logging.getLogger('tensorflow')
