@@ -386,4 +386,7 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    # tf.config.set_soft_device_placement(True)
+    tf.debugging.set_log_device_placement(True)
+    with tf.device('/device:GPU:2'):
+        train()
