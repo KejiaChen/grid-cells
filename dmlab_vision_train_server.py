@@ -143,7 +143,6 @@ def train():
             FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.dataset_with_vision)
     # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
 
-
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
             env_size=FLAGS.task_env_size,
@@ -164,10 +163,7 @@ def train():
     target_ensembles = place_cell_ensembles + head_direction_ensembles
 
     # Model creation
-    conv_nn = model.ConvNet(nh_conv_output=FLAGS.model_nh_conv)
-    vision_nn = model.VisionModule(conv=conv_nn,
-                                   target_ensembles=target_ensembles,
-                                   nh_conv=FLAGS.model_nh_conv,
+    vision_nn = model.VisionModule(target_ensembles=target_ensembles,
                                    nh_bottleneck=FLAGS.model_nh_bottleneck,
                                    init_weight_disp=FLAGS.model_init_weight_disp)
     print("Initialization")
@@ -300,7 +296,7 @@ def train():
         '''
         # print("start tf function")
         with tf.GradientTape() as tape:
-            ensembles_logits, conv_output = vision_nn(inputs, training=True)
+            ensembles_logits, bottleneck_output = vision_nn(inputs, training=True)
             # print("trainable variables", rnn.trainable_variables)
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
             grad = tape.gradient(loss, vision_nn.trainable_variables)
@@ -321,9 +317,9 @@ def train():
 
     @tf.function
     def eval_step(targets, inputs, init):
-        ensembles_logits, conv_output = vision_nn(inputs, training=False)
+        ensembles_logits, bottleneck_output = vision_nn(inputs, training=False)
         loss = loss_object(targets, ensembles_logits)
-        return ensembles_logits, conv_output, loss
+        return ensembles_logits, bottleneck_output, loss
 
     # logging
     log_name = 'tensorflow_py3.7_dmlab_vision_' + time.strftime("%m-%d_%H:%M", time.localtime())
@@ -377,7 +373,7 @@ def train():
                 train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
                 init_pos, init_hd, ego_vel, target_pos, target_hd, frame = train_traj
                 conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
-                eval_ensembles_logits, eval_conv_output, eval_loss = eval_step(ensembles_targets, conc_inputs, initial_conds)
+                eval_ensembles_logits, eval_bottleneck_output, eval_loss = eval_step(ensembles_targets, conc_inputs, initial_conds)
                 eval_loss_acc.append(eval_loss)
 
             log.info('Epoch %i, evaluation mean loss %.5f, std loss %.5f', epoch, np.mean(eval_loss_acc),
