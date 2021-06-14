@@ -21,6 +21,8 @@ from __future__ import print_function
 
 import matplotlib
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import numpy as np
 import tensorflow as tf
 from absl import flags
@@ -408,4 +410,8 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    # tf.config.set_soft_device_placement(True)
+    tf.debugging.set_log_device_placement(True)
+    with tf.device('/device:GPU:2'):
+        train()
+
