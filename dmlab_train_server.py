@@ -21,6 +21,8 @@ from __future__ import print_function
 
 import matplotlib
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import numpy as np
 import tensorflow as tf
 from absl import flags
@@ -130,6 +132,7 @@ FLAGS(sys.argv)
 
 FILE_PATH = os.path.realpath(__file__)
 FILE_DIR, _ = os.path.split(FILE_PATH)
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 def train():
     """Training loop."""
@@ -302,7 +305,10 @@ def train():
         return ensembles_logits, bottleneck, lstm_output
 
     # logging
+    # log_file = FLAGS.task_root + '/log/' + log_name + '.log'
+    # print(log_file)
     log_name = 'tensorflow_py3.7_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime())
+    log_file = FLAGS.task_root + '/log/' + log_name + '.log'
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
@@ -371,7 +377,7 @@ def train():
                 plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                 manager.save()
 
-            utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory+'/result', plotname, axis_min=-1.25, axis_max=1.25)
+            # utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory+'/result', plotname, axis_min=-1.25, axis_max=1.25)
 
             grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
                 'btln_60_separation'], grid_scores[
