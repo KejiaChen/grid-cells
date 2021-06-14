@@ -342,10 +342,10 @@ def train():
 
     # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=vision_nn)
-    check_dir = FLAGS.saver_results_directory + "/result/model/ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
+    check_dir = FLAGS.saver_results_directory + "/result/model/vision_ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
 
     manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
-                                         checkpoint_name='model_dmlab.ckpt')
+                                         checkpoint_name='vision_model_dmlab.ckpt')
 
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
