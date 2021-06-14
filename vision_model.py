@@ -57,14 +57,14 @@ class VisionModule(snt.Module):
                 """
         super(VisionModule, self).__init__(name=name)
         self.conv_net = []
-        conv_layer1 = snt.Conv2D(16, 5, stride=2, padding='SAME', name="conv1")
-        self.conv_net.append(conv_layer1)
-        conv_layer2 = snt.Conv2D(32, 5, stride=2, padding='SAME', name="conv2")
-        self.conv_net.append(conv_layer2)
-        conv_layer3 = snt.Conv2D(64, 5, stride=2, padding='SAME', name="conv3")
-        self.conv_net.append(conv_layer3)
-        conv_layer4 = snt.Conv2D(128, 5, stride=2, padding='SAME', name="conv4")
-        self.conv_net.append(conv_layer4)
+        self.conv_layer1 = snt.Conv2D(16, 5, stride=2, padding='SAME', name="conv1")
+        self.conv_net.append(self.conv_layer1)
+        self.conv_layer2 = snt.Conv2D(32, 5, stride=2, padding='SAME', name="conv2")
+        self.conv_net.append(self.conv_layer2)
+        self.conv_layer3 = snt.Conv2D(64, 5, stride=2, padding='SAME', name="conv3")
+        self.conv_net.append(self.conv_layer3)
+        self.conv_layer4 = snt.Conv2D(128, 5, stride=2, padding='SAME', name="conv4")
+        self.conv_net.append(self.conv_layer4)
         # self._target_ensembles = target_ensembles
         self._nh_bottleneck = nh_bottleneck  # 256
         # self._nh_conv = nh_conv
@@ -123,9 +123,19 @@ class VisionModule(snt.Module):
         # conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")  # shape ( ,BN)
 
         # convnet
-        for layer in self.conv_net:
-            conv_out = layer[conv_out]
-            conv_out = tf.nn.relu(conv_out)
+        conv_out = self.conv_layer1(conv_out)
+        conv_out = tf.nn.relu(conv_out)
+        conv_out = self.conv_layer2(conv_out)
+        conv_out = tf.nn.relu(conv_out)
+        conv_out = self.conv_layer3(conv_out)
+        conv_out = tf.nn.relu(conv_out)
+        conv_out = self.conv_layer4(conv_out)
+        conv_out = tf.nn.relu(conv_out)
+
+        conv_out = tf.reshape(conv_out,(shape[0]*shape[1], -1))
+        # for layer in self.conv_net:
+        #     conv_out = layer[conv_out]
+        #     conv_out = tf.nn.relu(conv_out)
 
         bottleneck_output = self.bottleneck_layer(conv_out)
 

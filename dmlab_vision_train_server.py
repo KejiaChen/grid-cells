@@ -252,9 +252,9 @@ def train():
         if l2_regularization:
             loss_regularization = []
             # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[3]))  # conv_out_w
-            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[13]))  # hd_logits_w
-            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[15]))  # pc_logits_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[1]))  # bottleneck_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[11]))  # hd_logits_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[13]))  # pc_logits_w
             # for p in rnn.trainable_variables:
             #     loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
