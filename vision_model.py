@@ -31,6 +31,116 @@ def displaced_linear_initializer(input_size, displace, dtype=tf.float32):
             mean=displace*stddev, stddev=stddev, dtype=dtype)
 
 
+class VisionModule(snt.Module):
+    """Vision module to produce place cell and head direction cell activity patterns"""
+
+    def __init__(self,
+                 # conv,
+                 target_ensembles,
+                 # nh_conv,
+                 nh_bottleneck,
+                 init_weight_disp=0.0,
+                 name="vision_module"):
+        """Constructor of the Vision Network.
+
+                Args:
+                    conv: Convolutional network
+                    target_ensembles: Targets, place cells and head direction cells.
+                    nh_conv: Size of the convnet output.
+                    nh_bottleneck: Size of the linear layer between convnet output and output.
+                    dropoutrates_bottleneck: Iterable of keep rates (0,1]. The linear layer is
+                        partitioned into as many groups as the len of this parameter.
+                    bottleneck_weight_decay: Weight decay used in the bottleneck layer.
+                    bottleneck_has_bias: If the bottleneck has a bias.
+                    init_weight_disp: Displacement in the weights initialisation.
+                    name: the name of the module.
+                """
+        super(VisionModule, self).__init__(name=name)
+        self.conv_net = []
+        conv_layer1 = snt.Conv2D(16, 5, stride=2, padding='SAME', name="conv1")
+        self.conv_net.append(conv_layer1)
+        conv_layer2 = snt.Conv2D(32, 5, stride=2, padding='SAME', name="conv2")
+        self.conv_net.append(conv_layer2)
+        conv_layer3 = snt.Conv2D(64, 5, stride=2, padding='SAME', name="conv3")
+        self.conv_net.append(conv_layer3)
+        conv_layer4 = snt.Conv2D(128, 5, stride=2, padding='SAME', name="conv4")
+        self.conv_net.append(conv_layer4)
+        # self._target_ensembles = target_ensembles
+        self._nh_bottleneck = nh_bottleneck  # 256
+        # self._nh_conv = nh_conv
+        self._init_weight_disp = init_weight_disp
+        # self.initial_pc = snt.Linear(self._nh_lstm, name="vision_state_init")
+        # self.initial_hd = snt.Linear(self._nh_lstm, name="vision_cell_init")
+        self.bottleneck_layer = snt.Linear(self._nh_bottleneck,
+                                           # with_bias=self._bottleneck_has_bias,
+                                           # new version of sonnet has no inner regularizers factor
+                                           # L2 regularization is added to total_loss in train.py
+                                           # regularizers={
+                                           #     "w": tf.keras.regularizers.l2(
+                                           #         0.5 * (self._bottleneck_weight_decay))},
+                                           name="bottleneck")
+        self.ens_pc, self.ens_hd = target_ensembles
+
+        self.output_pc_layer = snt.Linear(
+            self.ens_pc.n_cells,
+            # new version of sonnet has no inner regularizers factor
+            # L2 regularization is added to total_loss in train.py
+            # regularizers={
+            #         "w": tf.keras.regularizers.l2(
+            #                 0.5 * (self._bottleneck_weight_decay))},
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="pc_logits")
+        self.output_hd_layer = snt.Linear(
+            self.ens_hd.n_cells,
+            # new version of sonnet has no inner regularizers factor
+            # L2 regularization is added to total_loss in train.py
+            # regularizers={
+            #         "w": tf.keras.regularizers.l2(
+            #                 0.5 * (self._bottleneck_weight_decay))},
+            w_init=displaced_linear_initializer(self._nh_bottleneck,
+                                                self._init_weight_disp,
+                                                dtype=tf.float32),
+            name="hd_logits")
+
+    def __call__(self, frame, training=False):
+        """
+        Args:
+            frame: visual inputs list (B, N, 63, 64, 3), with values in [-1,1]
+            training: whether to update network
+
+        Returns:
+
+        """
+        # Convert to floats.
+        frame = tf.cast(frame, tf.float32)
+        shape = frame._shape_as_list()
+        frame = tf.reshape(frame, (shape[0]*shape[1], shape[2], shape[3], shape[4]))
+        conv_out = frame
+
+        # frame /= 255  # [-1,1]
+        # conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")  # shape ( ,BN)
+
+        # convnet
+        for layer in self.conv_net:
+            conv_out = layer[conv_out]
+            conv_out = tf.nn.relu(conv_out)
+
+        bottleneck_output = self.bottleneck_layer(conv_out)
+
+        # Outputs place and HD ensembles
+        ens_pos_outputs = self.output_pc_layer(bottleneck_output)
+        ens_pos_outputs = tf.reshape(ens_pos_outputs, (shape[0], shape[1], self.ens_pc.n_cells))
+        ens_hd_outputs = self.output_hd_layer(bottleneck_output)
+        ens_hd_outputs = tf.reshape(ens_hd_outputs, (shape[0], shape[1], self.ens_hd.n_cells))
+
+        ens_outputs = tf.tuple([ens_pos_outputs, ens_hd_outputs])
+        bottleneck_output = tf.reshape(bottleneck_output, (shape[0], shape[1], self._nh_bottleneck))
+
+        return ens_outputs, bottleneck_output
+
+
 class ConvNetIMPALA(snt.Module):
     def __init__(self,
                  nh_conv_output,
@@ -228,110 +338,4 @@ class VisionModuleIMPALA(snt.Module):
         conv_out = tf.reshape(conv_out, (shape[0], shape[1], self._nh_conv))
 
         return ens_outputs, conv_out
-
-
-class VisionModule(snt.Module):
-    """Vision module to produce place cell and head direction cell activity patterns"""
-
-    def __init__(self,
-                 # conv,
-                 target_ensembles,
-                 # nh_conv,
-                 nh_bottleneck,
-                 init_weight_disp=0.0,
-                 name="vision_module"):
-        """Constructor of the Vision Network.
-
-                Args:
-                    conv: Convolutional network
-                    target_ensembles: Targets, place cells and head direction cells.
-                    nh_conv: Size of the convnet output.
-                    nh_bottleneck: Size of the linear layer between convnet output and output.
-                    dropoutrates_bottleneck: Iterable of keep rates (0,1]. The linear layer is
-                        partitioned into as many groups as the len of this parameter.
-                    bottleneck_weight_decay: Weight decay used in the bottleneck layer.
-                    bottleneck_has_bias: If the bottleneck has a bias.
-                    init_weight_disp: Displacement in the weights initialisation.
-                    name: the name of the module.
-                """
-        super(VisionModule, self).__init__(name=name)
-        self.conv_net = []
-        self.conv_net.append(snt.Conv2D(16, 5, stride=2, padding='SAME', name="conv1"))
-        self.conv_net.appned(snt.Conv2D(32, 5, stride=2, padding='SAME', name="conv2"))
-        self.conv_net.appned(snt.Conv2D(64, 5, stride=2, padding='SAME', name="conv3"))
-        self.conv_net.appned(snt.Conv2D(128, 5, stride=2, padding='SAME', name="conv4"))
-        # self._target_ensembles = target_ensembles
-        self._nh_bottleneck = nh_bottleneck  # 256
-        # self._nh_conv = nh_conv
-        self._init_weight_disp = init_weight_disp
-        # self.initial_pc = snt.Linear(self._nh_lstm, name="vision_state_init")
-        # self.initial_hd = snt.Linear(self._nh_lstm, name="vision_cell_init")
-        self.bottleneck_layer = snt.Linear(self._nh_bottleneck,
-                                           with_bias=self._bottleneck_has_bias,
-                                           # new version of sonnet has no inner regularizers factor
-                                           # L2 regularization is added to total_loss in train.py
-                                           # regularizers={
-                                           #     "w": tf.keras.regularizers.l2(
-                                           #         0.5 * (self._bottleneck_weight_decay))},
-                                           name="bottleneck")
-        self.ens_pc, self.ens_hd = target_ensembles
-
-        self.output_pc_layer = snt.Linear(
-            self.ens_pc.n_cells,
-            # new version of sonnet has no inner regularizers factor
-            # L2 regularization is added to total_loss in train.py
-            # regularizers={
-            #         "w": tf.keras.regularizers.l2(
-            #                 0.5 * (self._bottleneck_weight_decay))},
-            w_init=displaced_linear_initializer(self._nh_bottleneck,
-                                                self._init_weight_disp,
-                                                dtype=tf.float32),
-            name="pc_logits")
-        self.output_hd_layer = snt.Linear(
-            self.ens_hd.n_cells,
-            # new version of sonnet has no inner regularizers factor
-            # L2 regularization is added to total_loss in train.py
-            # regularizers={
-            #         "w": tf.keras.regularizers.l2(
-            #                 0.5 * (self._bottleneck_weight_decay))},
-            w_init=displaced_linear_initializer(self._nh_bottleneck,
-                                                self._init_weight_disp,
-                                                dtype=tf.float32),
-            name="hd_logits")
-
-    def __call__(self, frame, training=False):
-        """
-        Args:
-            frame: visual inputs list (B, N, 63, 64, 3), with values in [-1,1]
-            training: whether to update network
-
-        Returns:
-
-        """
-        # Convert to floats.
-        frame = tf.cast(frame, tf.float32)
-        shape = frame._shape_as_list()
-        frame = tf.reshape(frame, (shape[0]*shape[1], shape[2], shape[3], shape[4]))
-        conv_out = frame
-
-        # frame /= 255  # [-1,1]
-        # conc_inputs = tf.concat(inputs, axis=1, name="conc_inputs")  # shape ( ,BN)
-
-        # convnet
-        for layer in self.conv_net:
-            conv_out = layer[conv_out]
-            conv_out = tf.nn.relu(conv_out)
-
-        bottleneck_output = self.bottleneck_layer(conv_out)
-
-        # Outputs place and HD ensembles
-        ens_pos_outputs = self.output_pc_layer(bottleneck_output)
-        ens_pos_outputs = tf.reshape(ens_pos_outputs, (shape[0], shape[1], self.ens_pc.n_cells))
-        ens_hd_outputs = self.output_hd_layer(bottleneck_output)
-        ens_hd_outputs = tf.reshape(ens_hd_outputs, (shape[0], shape[1], self.ens_hd.n_cells))
-
-        ens_outputs = tf.tuple([ens_pos_outputs, ens_hd_outputs])
-        bottleneck_output = tf.reshape(bottleneck_output, (shape[0], shape[1], self._nh_bottleneck))
-
-        return ens_outputs, bottleneck_output
 
