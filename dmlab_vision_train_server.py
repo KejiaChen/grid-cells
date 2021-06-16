@@ -106,8 +106,8 @@ flags.DEFINE_string("training_optimizer_class",
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
                     "Defines a dict with opts passed to the optimizer.")
-flags.DEFINE_bool("train_with_vision", True,
-                  "Train with visual inputs from dmlab.")
+flags.DEFINE_bool("supervised_vision", True,
+                  "Train visual module with supervised learning.")
 
 # Store
 flags.DEFINE_string("saver_results_directory",
@@ -173,7 +173,7 @@ def train():
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
     @tf.function
-    def prepare_data(traj):
+    def prepare_data(traj, vision_batch_size=32):
         # Dataset should include vision
         if FLAGS.dataset_with_vision:
             init_pos, init_hd, ego_vel, target_pos, target_hd, frame = traj
@@ -188,10 +188,15 @@ def train():
             input_tensors = [ego_vel + vel_noise] + input_tensors
             # Concatenate all inputs
             concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
-        if FLAGS.train_with_vision:
+        if FLAGS.supervised_vision:
             # in tensor
             frame_tensor = tf.io.decode_raw(frame, tf.float64)
-            concat_inputs = tf.reshape(frame_tensor, (10, 100, 64, 64, 3))
+
+            shape = tf.shape(target_pos)
+            # concat_inputs = tf.reshape(frame_tensor, (10, 100, 64, 64, 3))
+            concat_inputs = tf.reshape(frame_tensor, (shape[0] * shape[1], 64, 64, 3))
+            target_pos = tf.reshape(target_pos, (shape[0] * shape[1], -1))
+            target_hd = tf.reshape(target_hd, (shape[0] * shape[1], -1))
 
             # in array
             # frame = frame.numpy()
@@ -208,11 +213,24 @@ def train():
             # # Concatenate all inputs
             # concat_inputs = tf.concat(input_tensors, axis=0)  # shape=(10*100*64*64*3)
 
+            def random_sampling(input, n_samples):
+                uniform_log_prob = tf.expand_dims(tf.zeros(tf.shape(input)[0]), 0)
+
+                ind = tf.random.categorical(uniform_log_prob, n_samples)
+                ind = tf.squeeze(ind, 0, name="random_choice_ind")  # (n_samples,)
+
+                return tf.gather(input, ind, name="random_choice")
+
+            concat_inputs = tf.expand_dims(random_sampling(concat_inputs, vision_batch_size), axis=0)  # (1,32,64,64,3)
+            target_pos = tf.expand_dims(random_sampling(target_pos, vision_batch_size), axis=0)
+            target_hd = tf.expand_dims(random_sampling(target_hd, vision_batch_size), axis=0)
+
         # encode initial and target
         initial_to_cells = utils.encode_initial_conditions(
             init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
         targets_to_cells = utils.encode_targets(
             target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
+
         return concat_inputs, initial_to_cells, targets_to_cells
 
     # Replace euclidean positions and angles by encoding of place and hd ensembles
