@@ -88,12 +88,14 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 1000,
+flags.DEFINE_integer("training_epochs", 200, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 500,
                      "Number of optimization steps per epoch.")
-flags.DEFINE_integer("training_minibatch_size", 10,
+flags.DEFINE_integer("training_minibatch_size", 1,
                      "Size of the training minibatch.")
-flags.DEFINE_integer("training_evaluation_minibatch_size", 4000,
+flags.DEFINE_integer("vision_minibatch_size", 32,
+                     "Size of the frame minibatch.")
+flags.DEFINE_integer("training_evaluation_minibatch_size", 4,
                      "Size of the minibatch during evaluation.")
 flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients",
                     "Function for gradient clipping.")
@@ -173,7 +175,7 @@ def train():
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
     @tf.function
-    def prepare_data(traj, vision_batch_size=32):
+    def prepare_data(traj, vision_batch_size=FLAGS.vision_minibatch_size):
         # Dataset should include vision
         if FLAGS.dataset_with_vision:
             init_pos, init_hd, ego_vel, target_pos, target_hd, frame = traj
@@ -407,11 +409,11 @@ def train():
                 # res = utils.new_concat_dict(res, mb_res)  # evaluation output
                 # print(_)
 
-            # # Store at the end of validation
-            # if epoch % FLAGS.saver_pdf_time == 0:
+            # Store at the end of validation
+            if epoch % FLAGS.saver_pdf_time == 0:
             #     filename = 'rates_and_sac_latest_hd_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
             #     plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
-            #     manager.save()
+                manager.save()
             #
             # utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory+'/result', plotname, axis_min=-1.25, axis_max=1.25)
 
