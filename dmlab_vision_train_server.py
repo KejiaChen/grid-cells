@@ -88,8 +88,8 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 200, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 500,
+flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 1000,
                      "Number of optimization steps per epoch.")
 flags.DEFINE_integer("training_minibatch_size", 1,
                      "Size of the training minibatch.")
