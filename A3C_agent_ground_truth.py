@@ -15,7 +15,7 @@ from typing import Any, List, Sequence, Tuple
 import threading
 from collections import namedtuple
 from A3C_utils import *
-from dmlab_maze.env.A3CLabEnv import RandomMaze
+from dmlab_maze.dm_env.A3CLabEnv import RandomMaze
 import logging
 from logging.handlers import RotatingFileHandler
 import time
