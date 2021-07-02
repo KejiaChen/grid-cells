@@ -1,12 +1,15 @@
 import random
 import os
-import collections
+import json
+from collections import namedtuple
 # from env.A3CLabEnv_dmlab import RandomMaze
 from collections import defaultdict
 from absl import flags
 import numpy as np
 import math
 import tensorflow as tf
+import tensorflow.keras.optimizers as optim
+from collections import defaultdict
 import sys
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -15,48 +18,7 @@ import IPython.terminal.debugger as Debug
 import IPython.display as display
 import PIL.Image as Image
 
-# Task config
-# flags.DEFINE_float("coord_range",
-#                     2.5,
-#                     "coordinate range of the dmlab room")
-# flags.DEFINE_integer("dataset_size",
-#                      100,
-#                      "number of files in the dataset")
-# flags.DEFINE_integer("file_length",
-#                      100,
-#                      "number of trajectories in each file")
-# flags.DEFINE_integer("eps_length",
-#                      100,
-#                      "number of steps in each trajectory")
-# flags.DEFINE_string("data_root",
-#                     "/home/learning/Documents/kejia/grid-cells/dm_lab_data/",
-#                     "path of the dataset folder to store data")
-# flags.DEFINE_string("map_name",
-#                     "map_10_0.txt",
-#                     "name of the txt map")
-
-# Training config
-
-
-# # Require flags from keyboard input
-# flags.mark_flag_as_required("data_root")
-# flags.mark_flag_as_required("map_name")
-# FLAGS = flags.FLAGS
-# FLAGS(sys.argv)
-
-# # dataset information
-# DatasetInfo = collections.namedtuple(
-#             'DatasetInfo', ['basepath', 'size', 'sequence_length', 'coord_range'])
-#
-# _DATASETS = dict(
-#         square_room=DatasetInfo(
-#             # basepath='square_room_100steps_2.5m_novision_100',
-#             basepath='square_room_' + str(FLAGS.eps_length) + 'steps_2.5m_novision_' + str(FLAGS.file_length) + '_test',
-#             size=FLAGS.dataset_size,  # 100 files
-#             sequence_length=FLAGS.eps_length,  # 100 steps
-#             coord_range=((-0.5*FLAGS.coord_range, 0.5*FLAGS.coord_range),
-#                          (-0.5*FLAGS.coord_range, 0.5*FLAGS.coord_range))),)  # coordinate range for x and y
-
+Transition = namedtuple('Transition', ('state', 'action', 'reward', 'done'))
 
 
 def _get_dataset_files(dateset_info, root):
@@ -213,242 +175,137 @@ def print_maze_info(configs):
     print('----------------------------')
 
 
-# def run_demo():
-#     # SET THE ENVIRONMENT
-#     # level name
-#     # level = "nav_random_maze"
-#     level = 'contributed/dmlab30/rooms_watermaze'
-#
-#     # desired observations
-#     observation_list = ['RGB_INTERLEAVED',
-#                         # 'RGB.LOOK_PANORAMA_VIEW',
-#                         # 'RGB.LOOK_TOP_DOWN_VIEW',
-#                         'DEBUG.CAMERA.TOP_DOWN',
-#                         'DEBUG.POS.TRANS',
-#                         'DEBUG.POS.ROT',
-#                         'VEL.TRANS',
-#                         'VEL.ROT',
-#                         ]
-#
-#     # configurations
-#     configurations = {
-#         'width': str(64),
-#         'height': str(64),
-#         "fps": str(60)
-#     }
-#
-#     # maze theme and posters
-#     theme_list = ["TRON", "MINESWEEPER", "TETRIS", "GO", "PACMAN", "INVISIBLE_WALLS"]
-#     decal_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # decoration on the wall?
-#
-#     # mapper
-#     random_maze = sample_maze(name=FLAGS.map_name)
-#
-#     # create the map environment
-#     myEnv = RandomMaze(level,
-#                        observation_list,
-#                        configurations,
-#                        FLAGS.coord_range)
-#
-#     # initialize the maze environment
-#     maze_configs = set_config_level(random_maze)
-#
-#     # set the maze
-#     myEnv.reset(maze_configs)
-#
-#     # save inital position and direction (np.array)
-#     last_obs, reward, done, last_dist, pos, rots, ego_vel, none_dict = myEnv.observe()
-#     # init_pose = maze_configs["start_pos"]
-#     init_pos = pos  # position_scale(np.array([pos[0], pos[1]]))
-#     init_hd = rots  # math.radians(rots[1])
-#
-#     # # create observation windows
-#     # myEnv._last_observation = myEnv.get_random_observations(myEnv.position_map2maze([1, 3, 0], myEnv.maze_size))
-#     # myEnv.show_panorama_view()
-#     myEnv.show_front_view()
-#
-#     # agent = SpringAgent(myEnv.get_action_specification())\
-#     agent = SpringAgent(ACTION_LIST)
-#
-#     # start test
-#     episode_length = FLAGS.eps_length  # every trajectory has 100 steps
-#     file_length = FLAGS.file_length  # every file contains 10000 trajectories
-#     time_episodes_num = FLAGS.dataset_size * episode_length * file_length * 2
-#     random.seed(maze_configs["maze_seed"])
-#     ep = 0
-#     file = 0
-#     # pos_len = 1
-#     reward = 0
-#     num_steps = 2
-#     # Initialize trajectory list
-#     ego_vels = []
-#     target_pos = []
-#     target_hd = []
-#     obs_img = []
-#
-#     # Initialize list for each file, which includes 10000 curves
-#     traj_init_pos = []
-#     traj_init_hd = []
-#     traj_ego_vel = []
-#     traj_target_pos = []
-#     traj_target_hd = []
-#     traj_obs_img = []
-#
-#     # The first random step
-#     # last_obs = myEnv.get_front_view()
-#     for t in range(time_episodes_num):
-#         # sample an action of translation velocity and angular velocity
-#         # ang_vel = random.choice([-20, -10, 0, 10, 20])
-#         # ang_act = _action(ang_vel, 0, 0, 0, 0, 0, 0)
-#         # print("angular vel:", ang_vel)
-#         # # in radians
-#         # ang_vel_rad = math.radians(ang_vel)
-#         #
-#         # trans_act = _action(0, 0, 0, 1, 0, 0, 0)  # move forward
-#
-#         # ang_act = random.choice([-20, 0, 20])
-#         ang_act = random.uniform(-150, 150)
-#         trans_act = random.choice([0, 1])
-#         # act = _action(ang_act, 0, 0, trans_act, 0, 0, 0)
-#         act = _action(ang_act, 0, 0, 1, 0, 0, 0)
-#         # print("action", act)
-#
-#         for i in range(num_steps):
-#             last_obs, reward, done, last_dist, pos, rots, ego_vel, none_dict = myEnv.step(act)
-#             if done:
-#                 print("success!!!")
-#                 continue
-#
-#         # print("translational velocity", trans_vel)
-#         # print("angluar velocity", ang_vel)
-#         # print("hd:", rots)
-#         print("pos:", pos)
-#         print("hd:", rots)
-#
-#         # act = agent.random_step()
-#
-#         # save trajectory in list
-#         # ang_vel_rad = math.radians(ang_vel[1])  # in radians
-#         # trans_vel_value = np.sqrt(np.square(position_scale(trans_vel[0])) + np.square(position_scale(trans_vel[1])))
-#         # # print("vt", trans_vel_value)
-#         # ego_vel.append(np.array([trans_vel_value, math.sin(ang_vel_rad), math.cos(ang_vel_rad)]))  # trans_vel + sine and cosine of angular velocity
-#         target_pos.append(pos)  # target_pos.append(position_scale(np.array([pos[0], pos[1]])))
-#         # print("saved position:", pos)
-#         # print("current direction:", rots)
-#         target_hd.append(rots)  # target_hd.append(math.radians(rots[1]))
-#         resize_obs = -1+(last_obs-1)/127
-#         obs_img.append(resize_obs)  # front view, shape[64, 64, 3]
-#
-#         # for a random maze view
-#         # myEnv._last_observation = myEnv.get_random_observations(myEnv.position_map2maze([1, 3, 0], myEnv.maze_size))
-#         # for the panorama view
-#         # myEnv.show_panorama_view(t)
-#         # for the front view
-#         myEnv.show_front_view(t)
-#
-#         if t % episode_length == 0:
-#             # trajectory tuple
-#             # print("trajectory", target_pos)
-#             # episode_traj = (init_pos, init_hd, ego_vel, target_pos, target_hd, obs_img)
-#             print("init position:", init_pos)
-#             traj_init_pos.append(init_pos)
-#             traj_init_hd.append(init_hd)
-#             traj_ego_vel.append(ego_vel)
-#             traj_target_pos.append(target_pos)
-#             traj_target_hd.append(target_hd)
-#             traj_obs_img.append(obs_img)
-#             # array_image = np.array(obs_img)
-#             # print("shape:", array_image.shape) # shape(100, 64, 64, 3)
-#
-#             # process trajectory into tf.Example
-#             def make_example(i_pos, i_hd, vel, t_pos, t_hd, img):
-#
-#                 feature_map = {
-#                     'init_pos': _float_feature(i_pos),  # shape=(?, 2), ?=minibatch size
-#                     'init_hd': _float_feature([i_hd]),
-#                     'ego_vel': _float_feature(np.array(vel).flatten()),
-#                     'target_pos': _float_feature(np.array(t_pos).flatten()),
-#                     'target_hd': _float_feature(np.array(t_hd).flatten()),
-#                     'image': _bytes_feature(bytes(np.array(img))),
-#                 }
-#
-#                 return tf.train.Example(features=tf.train.Features(feature=feature_map))
-#
-#             # write into tfrecords
-#             if ep % file_length == 0:
-#                 record_path = FLAGS.data_root
-#                 record_file = _get_dataset_files(_DATASETS["square_room"], record_path)
-#                 # record_file = "test00" + str(ep) + "-of-0099.tfrecord"
-#
-#                 with tf.io.TFRecordWriter(record_file[file]) as writer:
-#                     print("save traj in:" , record_file[file])
-#                     for i in range(len(traj_target_pos)):
-#                         # tf_example = make_example(init_pos, init_hd, ego_vel, target_pos, target_hd, obs_img)
-#                         tf_example = make_example(traj_init_pos.pop(0), traj_init_hd.pop(0), traj_ego_vel.pop(0),
-#                                                   traj_target_pos.pop(0), traj_target_hd.pop(0), traj_obs_img.pop(0))
-#                         writer.write(tf_example.SerializeToString())
-#
-#                 file += 1
-#
-#             # a new episode
-#             ep += 1
-#
-#             # randomly sample a new maze after each episode
-#             random_new_maze = sample_maze(name=FLAGS.map_name)
-#             # set the new maze params
-#             new_maze_configs = set_config_level(random_new_maze)
-#
-#             # set the maze
-#             print("Time = {}, Ep = {}, Start = {}, Goal = {}".format(t, ep, new_maze_configs['start_pos'], new_maze_configs['goal_pos']))
-#             print("Setting new random maze...")
-#             myEnv.reset(new_maze_configs)
-#
-#             # save inital position and direction (np.array)
-#             last_obs, reward, if_terminal, last_dist, pos, rots, ego_vel, none_dict = myEnv.observe()
-#             init_pos = pos
-#             init_hd = rots
-#
-#             # Initialize trajectory list
-#             ego_vels = []
-#             target_pos = []
-#             target_hd = []
-#             obs_img = []
+class SharedRMSprop(optim.Optimizer):
+    """Implements RMSprop algorithm with shared states.
+    TODO: change to tensorflow
+    """
+
+    def __init__(self,
+                 params,
+                 lr=7e-4,
+                 alpha=0.99,
+                 eps=0.1,
+                 weight_decay=0,
+                 momentum=0,
+                 centered=False):
+        defaults = defaultdict(lr=lr, alpha=alpha, eps=eps,
+                               weight_decay=weight_decay, momentum=momentum, centered=centered)
+        super(SharedRMSprop, self).__init__(params, defaults)
+
+        for group in self.param_groups:
+            for p in group['params']:
+                state = self.state[p]
+                state['step'] = tf.zeros(1)
+                state['grad_avg'] = p.data.new().resize_as_(p.data).zero_()
+                state['square_avg'] = p.data.new().resize_as_(p.data).zero_()
+                state['momentum_buffer'] = p.data.new(
+                ).resize_as_(p.data).zero_()
+
+    def share_memory(self):
+        for group in self.param_groups:
+            for p in group['params']:
+                state = self.state[p]
+                state['square_avg'].share_memory_()
+                state['step'].share_memory_()
+                state['grad_avg'].share_memory_()
+                state['momentum_buffer'].share_memory_()
+
+    def step(self, closure=None):
+        """Performs a single optimization step.
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                if grad.is_sparse:
+                    raise RuntimeError(
+                        'RMSprop does not support sparse gradients')
+                state = self.state[p]
+
+                square_avg = state['square_avg']
+                alpha = group['alpha']
+
+                state['step'] += 1
+
+                if group['weight_decay'] != 0:
+                    grad = grad.add(group['weight_decay'], p.data)
+
+                square_avg.mul_(alpha).addcmul_(1 - alpha, grad, grad)
+
+                if group['centered']:
+                    grad_avg = state['grad_avg']
+                    grad_avg.mul_(alpha).add_(1 - alpha, grad)
+                    avg = square_avg.addcmul(
+                        -1, grad_avg, grad_avg).sqrt().add_(group['eps'])
+                else:
+                    avg = square_avg.sqrt().add_(group['eps'])
+
+                if group['momentum'] > 0:
+                    buf = state['momentum_buffer']
+                    buf.mul_(group['momentum']).addcdiv_(grad, avg)
+                    p.data.add_(-group['lr'], buf)
+                else:
+                    p.data.addcdiv_(-group['lr'], grad, avg)
+
+        return loss
 
 
-# if __name__ == '__main__':
-#     # sample_maze()
-#     # image = "/home/learning/Documents/kejia/grid-cells/graph/download.jpeg"
-#     # image_string = open(image, 'rb').read()
-#     # raw_image_dataset = tf.data.TFRecordDataset("/home/learning/Documents/kejia/grid-cells/dm_lab_data/square_room_100steps_2.5m_1000000/0000-of-0099.tfrecord")
-#     # sequence_length = 100
-#     #
-#     # feature_map = {
-#     #     'init_pos': tf.io.FixedLenFeature(shape=[2], dtype=tf.float32),  # shape=(?, 2), ?=minibatch size
-#     #     'init_hd': tf.io.FixedLenFeature(shape=[1], dtype=tf.float32),
-#     #     'ego_vel': tf.io.FixedLenFeature(shape=[sequence_length, 3], dtype=tf.float32),
-#     #     'target_pos': tf.io.FixedLenFeature(shape=[sequence_length, 2], dtype=tf.float32),
-#     #     'target_hd': tf.io.FixedLenFeature(shape=[sequence_length, 1], dtype=tf.float32),
-#     #     'image': tf.io.FixedLenFeature([], tf.string),
-#     # }
-#     #
-#     # def _parse_image_function(example_proto):
-#     #     # Parse the input tf.Example proto using the dictionary above.
-#     #     return tf.io.parse_single_example(example_proto, feature_map)
-#     #
-#     # parsed_image_dataset = raw_image_dataset.map(_parse_image_function)
-#     # reader_batch = parsed_image_dataset.batch(batch_size=1)
-#     #
-#     # for data in reader_batch.take(1):  # reader_batch.take(1) has only one element
-#     #     # print(type(batch))
-#     #     in_pos = data['init_pos']
-#     #     in_hd = data['init_hd']
-#     #     ego_vel = data['ego_vel']
-#     #     target_pos = data['target_pos']
-#     #     target_hd = data['target_hd']
-#     #     image = data['image']
-#     #     # decode_image = Image.frombytes("RGBA", (160, 160), (image.numpy())[0])
-#     #     # decode_image.save("test_image.png")
-#     #
-#     # print("read dataset")
-#
-#     run_demo()
+class ReplayMemory(object):
+    '''
+    Replay buffer to store the experience temporarily.
+    '''
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory = []
+        self.position = 0
+
+    def push(self, *args):
+        """saves a transition"""
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        self.memory[self.position] = Transition(*args)
+        # self.memory[self.position] = transition_dict
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size=100):
+        if self.position == 0:
+            print('error: empty memory when sampling')
+            return []
+        if self.position <= batch_size:
+            return self.memory
+        else:
+            return self.memory[-batch_size:]
+
+    def clear(self):
+        self.memory = []
+        self.position = 0
+
+    def __len__(self):
+        return len(self.memory)
+
+
+class StatsDict(object):
+    def __init__(self, key_list, save_file):
+        self.stats_dict = dict.fromkeys(key_list)
+        for key in key_list:
+            self.stats_dict[key] = []
+        self.file = save_file
+
+    def update(self, key, value):
+        self.stats_dict[key].append(value)
+
+    def save(self):
+        with open(self.file, 'w') as fp:
+            json.dump(self.stats_dict, fp)
+
+
+

@@ -15,6 +15,8 @@ from typing import Any, List, Sequence, Tuple
 import threading
 from collections import namedtuple
 from A3C_utils import *
+from A3C_models import *
+import json
 from dmlab_maze.dm_env.A3CLabEnv import RandomMaze
 import logging
 from logging.handlers import RotatingFileHandler
@@ -40,7 +42,7 @@ flags.DEFINE_string("saver_results_directory",
 
 # Training config
 flags.DEFINE_string("training_optimizer_options",
-                    "{'learning_rate': 1e-5, 'momentum': 0.99}",  # lr [1e-6, 2e-4]
+                    "{'learning_rate': 1e-6, 'momentum': 0.99}",  # lr [1e-6, 2e-4]
                     "Defines a dict with opts passed to the optimizer.")
 flags.DEFINE_float("alpha",
                    0.50,  # [0.48, 0.52]
@@ -55,7 +57,7 @@ flags.DEFINE_integer("backprop_len",
                      100,  # 100
                      "backpropagation steps in actor-critic learner")
 flags.DEFINE_integer("save_interval",
-                     50,
+                     3,
                      "backpropagation steps in actor-critic learner")
 flags.DEFINE_integer("action_repeat",
                      4,
@@ -96,7 +98,7 @@ flags.DEFINE_integer("eps_length",
 FLAGS = flags.FLAGS
 FLAGS(sys.argv)
 
-tf.keras.backend.set_floatx('float64')
+tf.keras.backend.set_floatx('float64')  # 64
 # wandb.init(name='A3C', project="deep-rl-tf2")
 
 # parser = argparse.ArgumentParser()
@@ -185,53 +187,32 @@ def make_environment(level):
     return myEnv
 
 
-class ReplayMemory(object):
-    '''
-    Replay buffer to store the experience temporarily.
-    '''
-
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.memory = []
-        self.position = 0
-
-    def push(self, *args):
-        """saves a transition"""
-        if len(self.memory) < self.capacity:
-            self.memory.append(None)
-        self.memory[self.position] = Transition(*args)
-        #self.memory[self.position] = transition_dict
-        self.position = (self.position + 1) % self.capacity
-
-    def sample(self, batch_size=100):
-        if self.position == 0:
-            print('error: empty memory when sampling')
-            return []
-        if self.position <= batch_size:
-            return self.memory
-        else:
-            return self.memory[-batch_size:]
-
-    def clear(self):
-        self.memory = []
-        self.position = 0
-
-    def __len__(self):
-        return len(self.memory)
-
-
 class ACModel(tf.keras.Model):
     """Network Structure"""
     def __init__(self, num_actions, num_hidden_units):
         super(ACModel, self).__init__()
-        # self.conv =
-        self.common = layers.LSTMCell(num_hidden_units, activation="relu")
+        self.fc1 = layers.Dense(128)
+        self.lrelu1 = layers.LeakyReLU(0.1)
+        self.fc2 = layers.Dense(256)
+        self.lrelu2 = layers.LeakyReLU(0.1)
+        self.fc3 = layers.Dense(256)
+        self.lrelu3 = layers.LeakyReLU(0.1)
+
+        self.lstm = layers.LSTMCell(num_hidden_units)  # activation="relu")
         self.actor = layers.Dense(num_actions, activation="softmax")
         self.critic = layers.Dense(1)
 
     def call(self, inputs):
         x, (ht, ct) = inputs
-        x, (ht, ct) = self.common(x, states=[ht, ct])
+
+        x = self.fc1(x)
+        x = self.lrelu1(x)
+        x = self.fc2(x)
+        x = self.lrelu2(x)
+        x = self.fc3(x)
+        x = self.lrelu3(x)
+
+        x, (ht, ct) = self.lstm(x, states=[ht, ct])
         return self.actor(x), self.critic(x), (ht, ct)
 
 
@@ -311,6 +292,10 @@ class LearnerAgent:
         self.num_workers = num_worker
         self.logger = self.setup_logger()
 
+        stats_file = FLAGS.saver_results_directory + "log/drl_log/stats" + \
+                     time.strftime("%m-%d_%H:%M", time.localtime()) + '.json'
+        self.stats_dict = StatsDict(['episode_reward'], save_file=stats_file)
+
     def setup_logger(self):
         # logging configs
         log_name = 'A3C_ground_truth' + time.strftime("%m-%d_%H:%M", time.localtime())
@@ -369,7 +354,7 @@ class LearnerAgent:
         for i in range(self.num_workers):
             env = make_environment(self.env_name)
             workers.append(WorkerAgent(
-                env, self.global_actor_critic, max_episodes, self.opt, manager, i, self.logger))
+                env, self.global_actor_critic, max_episodes, self.opt, manager, i, self.logger, self.stats_dict))
 
         for worker in workers:
             worker.start()
@@ -381,7 +366,8 @@ class LearnerAgent:
 
 
 class WorkerAgent(threading.Thread):
-    def __init__(self, env, global_actor_critic, max_episodes, optimizer, ckpt_manager, index, logger, memory_size=10000):
+    def __init__(self, env, global_actor_critic, max_episodes, optimizer, ckpt_manager, index, logger, save_dict,
+                 memory_size=10000):
         threading.Thread.__init__(self)
         self.replay_buffer = ReplayMemory(memory_size)
         self.lock = threading.Lock()
@@ -403,6 +389,7 @@ class WorkerAgent(threading.Thread):
 
         self.logger = logger
         # self.logger = self.setup_logger()
+        self.stats_dict = save_dict
 
         # initialization of weights to be the same as global network
         self.pull_param()
@@ -494,10 +481,12 @@ class WorkerAgent(threading.Thread):
                 with self.lock:
                     # self.model.save_weights(save_path)
                     self.manager.save()
+                    self.stats_dict.save()
                     self.logger.info("Saving model")
                     print('Saving model weights at episode {}'.format(CUR_EPISODE))
 
             episode_reward, done = 0, False
+            statistic_dict = {'eps_reward': []}
             episode_length = 0
             new_start = True
             action_index = 6  # init action: move forward
@@ -614,6 +603,7 @@ class WorkerAgent(threading.Thread):
 
             print('EP{} EpisodeReward={}'.format(CUR_EPISODE, episode_reward))
             # wandb.log({'Reward': episode_reward})
+            self.stats_dict.update("episode_reward", episode_reward)
             self.logger.info('Episode %i, reward %.5f, length %i, on %s', CUR_EPISODE, episode_reward,
                              episode_length, self.thread_name)
             ep_reward = 0
@@ -625,6 +615,7 @@ class WorkerAgent(threading.Thread):
 
 def main():
     optimizer_class = eval(FLAGS.training_optimizer_class)
+    # TODO: rmsprop with shared statistics
     optimizer = optimizer_class(**eval(FLAGS.training_optimizer_options))
     env_name = "nav_random_maze"
     # env_name = 'contributed/dmlab30/rooms_watermaze'
