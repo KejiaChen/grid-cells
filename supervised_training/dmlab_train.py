@@ -43,8 +43,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    # "/home/learning/Documents/kejia/grid-cells",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells",
+                    # None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -108,8 +108,8 @@ flags.DEFINE_bool("train_with_vision", False,
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    # "/home/learning/Documents/kejia/grid-cells/",
-                    None,
+                    "/home/learning/Documents/kejia/grid-cells/",
+                    # None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
@@ -270,7 +270,7 @@ def train():
                                             masks_parameters)
 
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
-    @tf.function
+    # @tf.function
     def train_step(targets, inputs, init):
         # print("start tf function")
         with tf.GradientTape() as tape:

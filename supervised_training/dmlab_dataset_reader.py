@@ -68,12 +68,12 @@ def _get_dataset_files(dateset_info, root):
     base = os.path.join(root, basepath)
     num_files = dateset_info.size
     # num_files = 100
-    use_num_files = 10
+    use_num_files = 1
     template = '{:0%d}-of-{:0%d}.tfrecord' % (4, 4)
     return [
             os.path.join(base, template.format(i, num_files - 1))
-            for i in range(num_files)
-            # for i in range(use_num_files)
+            # for i in range(num_files)
+            for i in range(use_num_files)
     ]
 
 

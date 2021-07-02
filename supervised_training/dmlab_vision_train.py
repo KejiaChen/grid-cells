@@ -20,6 +20,9 @@ from __future__ import division
 from __future__ import print_function
 
 import matplotlib
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import numpy as np
 import tensorflow as tf
 from absl import flags
@@ -27,13 +30,14 @@ import sys
 import tensorflow_probability as tfp
 import _tkinter
 # import Tkinter    # pylint: disable=unused-import
+from PIL import Image
 import logging
 import time
 
 matplotlib.use('Agg')
 
-import dataset_reader_new as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
-import model_new as model    # pylint: disable=g-bad-import-order
+import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
+import vision_model as model    # pylint: disable=g-bad-import
 import scores_new as scores    # pylint: disable=g-bad-import-order
 import utils_new as utils   # pylint: disable=g-bad-import-order
 
@@ -47,7 +51,7 @@ flags.DEFINE_string("task_root",
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
-flags.DEFINE_float("task_env_size", 2.2,
+flags.DEFINE_float("task_env_size", 2.5,
                    "Environment size (meters).")
 flags.DEFINE_list("task_n_pc", [256],
                   "Number of target place cells.")
@@ -63,13 +67,15 @@ flags.DEFINE_string("task_targets_type", "softmax",
                     "Type of target, soft or hard.")
 flags.DEFINE_string("task_lstm_init_type", "softmax",
                     "Type of LSTM initialisation, soft or hard.")
-flags.DEFINE_bool("task_velocity_inputs", True,
+flags.DEFINE_bool("task_velocity_inputs", False,
                   "Input velocity.")
 flags.DEFINE_list("task_velocity_noise", [0.0, 0.0, 0.0],
                   "Add noise to velocity.")
+flags.DEFINE_bool("dataset_with_vision", True,
+                  "Dataset contains images or not.")
 
 # Model config
-flags.DEFINE_integer("model_nh_lstm", 128, "Number of hidden units in LSTM.")
+flags.DEFINE_integer("model_nh_conv", 256, "Number of hidden units in the output of convnet.")
 flags.DEFINE_integer("model_nh_bottleneck", 256,
                      "Number of hidden units in linear bottleneck.")
 flags.DEFINE_list("model_dropout_rates", [0.5],
@@ -82,18 +88,19 @@ flags.DEFINE_float("model_init_weight_disp", 0.0,
                    "Initial weight displacement.")
 
 # Training config
-flags.DEFINE_integer("training_epochs", 10, "Number of training epochs.")
-flags.DEFINE_integer("training_steps_per_epoch", 10,
+flags.DEFINE_integer("training_epochs", 1000, "Number of training epochs.")
+flags.DEFINE_integer("training_steps_per_epoch", 1000,
                      "Number of optimization steps per epoch.")
-flags.DEFINE_integer("training_minibatch_size", 10,
+flags.DEFINE_integer("training_minibatch_size", 1,
                      "Size of the training minibatch.")
-flags.DEFINE_integer("training_evaluation_minibatch_size", 40,
+flags.DEFINE_integer("vision_minibatch_size", 32,
+                     "Size of the frame minibatch.")
+flags.DEFINE_integer("training_evaluation_minibatch_size", 4,
                      "Size of the minibatch during evaluation.")
 flags.DEFINE_string("training_clipping_function", "utils.new_clip_all_gradients",
                     "Function for gradient clipping.")
 flags.DEFINE_float("training_clipping", 1e-5,
                    "The absolute value to clip by.")
-
 flags.DEFINE_string("training_optimizer_class",
                     "tf.compat.v1.train.RMSPropOptimizer",
                     # "tf.keras.optimizers.RMSprop",
@@ -101,16 +108,24 @@ flags.DEFINE_string("training_optimizer_class",
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
                     "Defines a dict with opts passed to the optimizer.")
+flags.DEFINE_bool("supervised_vision", True,
+                  "Train visual module with supervised learning.")
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/result",
+                    "/home/learning/Documents/kejia/grid-cells/",
                     # None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
-flags.DEFINE_integer("saver_pdf_time", 5,
+flags.DEFINE_integer("saver_pdf_time", 50,
                      "frequency to save a new pdf result")
+
+# Switch mode: training or test
+# flags.DEFINE_boolean("test",
+#                      # "/home/learning/Documents/kejia/grid-cells/result",
+#                      False,
+#                      "choose 'train' or 'test'")
 
 # Require flags from keyboard input
 flags.mark_flag_as_required("task_root")
@@ -118,6 +133,8 @@ flags.mark_flag_as_required("saver_results_directory")
 FLAGS = flags.FLAGS
 FLAGS(sys.argv)
 
+FILE_PATH = os.path.realpath(__file__)
+FILE_DIR, _ = os.path.split(FILE_PATH)
 
 def train():
     """Training loop."""
@@ -125,11 +142,10 @@ def train():
     # tf.compat.v1.reset_default_graph()
 
     # Create the motion models for training and evaluation
-    data_root = FLAGS.task_root + '/data'
+    data_root = FLAGS.saver_results_directory + '/dm_lab_data'
     data_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=data_root, num_threads=4)
+            FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.dataset_with_vision)
     # train_batch = data_reader.read_batch(batch_size=FLAGS.training_minibatch_size)
-
 
     # Create the ensembles that provide targets during training
     place_cell_ensembles = utils.get_place_cell_ensembles(
@@ -151,20 +167,20 @@ def train():
     target_ensembles = place_cell_ensembles + head_direction_ensembles
 
     # Model creation
-    rnn_core = model.GridCellsRNNCell(
-            target_ensembles=target_ensembles,
-            nh_lstm=FLAGS.model_nh_lstm,
-            nh_bottleneck=FLAGS.model_nh_bottleneck,
-            dropoutrates_bottleneck=np.array(FLAGS.model_dropout_rates),
-            bottleneck_weight_decay=FLAGS.model_weight_decay,
-            bottleneck_has_bias=FLAGS.model_bottleneck_has_bias,
-            init_weight_disp=FLAGS.model_init_weight_disp)
-    rnn = model.GridCellsRNN(rnn_core, FLAGS.model_nh_lstm)
+    vision_nn = model.VisionModule(target_ensembles=target_ensembles,
+                                   nh_bottleneck=FLAGS.model_nh_bottleneck,
+                                   init_weight_disp=FLAGS.model_init_weight_disp)
+    print("Initialization")
 
     # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
 
-    def prepare_data(traj):
-        init_pos, init_hd, ego_vel, target_pos, target_hd = traj
+    @tf.function
+    def prepare_data(traj, vision_batch_size=FLAGS.vision_minibatch_size):
+        # Dataset should include vision
+        if FLAGS.dataset_with_vision:
+            init_pos, init_hd, ego_vel, target_pos, target_hd, frame = traj
+        else:
+            init_pos, init_hd, ego_vel, target_pos, target_hd = traj
         # inputs
         input_tensors = []
         if FLAGS.task_velocity_inputs:
@@ -172,14 +188,51 @@ def train():
             vel_noise = tfp.distributions.Normal(0.0, 1.0).sample(
                 sample_shape=ego_vel.get_shape()) * FLAGS.task_velocity_noise
             input_tensors = [ego_vel + vel_noise] + input_tensors
-        # Concatenate all inputs
-        concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
+            # Concatenate all inputs
+            concat_inputs = tf.concat(input_tensors, axis=2)  # shape=(10*100*3)
+        if FLAGS.supervised_vision:
+            # in tensor
+            frame_tensor = tf.io.decode_raw(frame, tf.float64)
+
+            shape = tf.shape(target_pos)
+            # concat_inputs = tf.reshape(frame_tensor, (10, 100, 64, 64, 3))
+            concat_inputs = tf.reshape(frame_tensor, (shape[0]*shape[1], 64, 64, 3))
+            target_pos = tf.reshape(target_pos, (shape[0]*shape[1], -1))
+            target_hd = tf.reshape(target_hd, (shape[0]*shape[1], -1))
+
+            # in array
+            # frame = frame.numpy()
+            # for i in range(frame.shape[0]):
+            #     frame_array = np.frombuffer(frame[i])
+            #     frame_array = np.reshape(frame_array, (1, 100, 64, 64, 3))
+            # # one_frame_array = frame_array[0]
+            # # test if the image is read correctly
+            # # recover_image = (one_frame_array + 1) * 127 + 1
+            # # recover_image = recover_image.astype(np.uint8)
+            # # img = Image.fromarray(recover_image, 'RGB')
+            # # img.show()
+            #     input_tensors = [frame_array] + input_tensors  # one frame shpae(64, 64, 3)
+            # # Concatenate all inputs
+            # concat_inputs = tf.concat(input_tensors, axis=0)  # shape=(10*100*64*64*3)
+
+            def random_sampling(input, n_samples):
+                uniform_log_prob = tf.expand_dims(tf.zeros(tf.shape(input)[0]), 0)
+
+                ind = tf.random.categorical(uniform_log_prob, n_samples)
+                ind = tf.squeeze(ind, 0, name="random_choice_ind")  # (n_samples,)
+
+                return tf.gather(input, ind, name="random_choice")
+
+            concat_inputs = tf.expand_dims(random_sampling(concat_inputs, vision_batch_size), axis=0)  # (1,32,64,64,3)
+            target_pos = tf.expand_dims(random_sampling(target_pos, vision_batch_size), axis=0)
+            target_hd = tf.expand_dims(random_sampling(target_hd, vision_batch_size), axis=0)
 
         # encode initial and target
         initial_to_cells = utils.encode_initial_conditions(
             init_pos, init_hd, place_cell_ensembles, head_direction_ensembles)
         targets_to_cells = utils.encode_targets(
             target_pos, target_hd, place_cell_ensembles, head_direction_ensembles)
+
         return concat_inputs, initial_to_cells, targets_to_cells
 
     # Replace euclidean positions and angles by encoding of place and hd ensembles
@@ -219,13 +272,15 @@ def train():
         if l2_regularization:
             loss_regularization = []
             # add regularization for bottleneck_w, hd_logits_w, pc_logits_w
-            loss_regularization.append(manual_regularization(rnn.trainable_variables[3]))  # bottleneck_w
-            loss_regularization.append(manual_regularization(rnn.trainable_variables[5]))  # hd_logits_w
-            loss_regularization.append(manual_regularization(rnn.trainable_variables[7]))  # pc_logits_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[1]))  # bottleneck_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[11]))  # hd_logits_w
+            loss_regularization.append(manual_regularization(vision_nn.trainable_variables[13]))  # pc_logits_w
             # for p in rnn.trainable_variables:
             #     loss_regularization.append(tf.nn.l2_loss(p))
             loss_regularization = tf.reduce_sum(tf.stack(loss_regularization))
             loss = training_loss + FLAGS.model_weight_decay*loss_regularization
+        else:
+            loss = training_loss
         return loss
 
     # Optimisation ops
@@ -239,13 +294,13 @@ def train():
     # train_op = optimizer.apply_gradients(clipped_grad)
 
     # Store the grid scores
-    grid_scores = dict()
-    grid_scores['btln_60'] = np.zeros((FLAGS.model_nh_bottleneck,))
-    grid_scores['btln_90'] = np.zeros((FLAGS.model_nh_bottleneck,))
-    grid_scores['btln_60_separation'] = np.zeros((FLAGS.model_nh_bottleneck,))
-    grid_scores['btln_90_separation'] = np.zeros((FLAGS.model_nh_bottleneck,))
-    grid_scores['lstm_60'] = np.zeros((FLAGS.model_nh_lstm,))
-    grid_scores['lstm_90'] = np.zeros((FLAGS.model_nh_lstm,))
+    # grid_scores = dict()
+    # grid_scores['btln_60'] = np.zeros((FLAGS.model_nh_bottleneck,))
+    # grid_scores['btln_90'] = np.zeros((FLAGS.model_nh_bottleneck,))
+    # grid_scores['btln_60_separation'] = np.zeros((FLAGS.model_nh_bottleneck,))
+    # grid_scores['btln_90_separation'] = np.zeros((FLAGS.model_nh_bottleneck,))
+    # grid_scores['lstm_60'] = np.zeros((FLAGS.model_nh_lstm,))
+    # grid_scores['lstm_90'] = np.zeros((FLAGS.model_nh_lstm,))
 
     # Create scorer objects
     starts = [0.2] * 10
@@ -255,15 +310,18 @@ def train():
                                             masks_parameters)
 
     # with tf.compat.v1.train.SingularMonitoredSession() as sess:
-    # @tf.function
+    @tf.function
     def train_step(targets, inputs, init):
+        '''
+        inputs: one image
+        ouputs: ensemble logits of pc and hdc
+        '''
         # print("start tf function")
         with tf.GradientTape() as tape:
-            outputs, _ = rnn(init, inputs, training=True)
+            ensembles_logits, bottleneck_output = vision_nn(inputs, training=True)
             # print("trainable variables", rnn.trainable_variables)
-            ensembles_logits, bottleneck, lstm_output = outputs
             loss = loss_object(targets, ensembles_logits, l2_regularization=True)
-            grad = tape.gradient(loss, rnn.trainable_variables)
+            grad = tape.gradient(loss, vision_nn.trainable_variables)
             grad_var = []
             # for i in range(12):
             #     temp = tf.tuple([grad[i], rnn.trainable_variables[i]])
@@ -276,18 +334,17 @@ def train():
             clipped_grad = [
                 clip_gradient(g, FLAGS.training_clipping) for g in grad
             ]
-            optimizer.apply_gradients(zip(clipped_grad, rnn.trainable_variables))
+            optimizer.apply_gradients(zip(clipped_grad, vision_nn.trainable_variables))
             return loss, grad
 
     @tf.function
     def eval_step(targets, inputs, init):
-        outputs, _ = rnn(init, inputs, training=False)
-        ensembles_logits, bottleneck, lstm_output = outputs
-        # loss = loss_object(targets, ensembles_logits)
-        return ensembles_logits, bottleneck, lstm_output
+        ensembles_logits, bottleneck_output = vision_nn(inputs, training=False)
+        loss = loss_object(targets, ensembles_logits)
+        return ensembles_logits, bottleneck_output, loss
 
     # logging
-    log_name = 'tensorflow_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime())
+    log_name = 'tensorflow_py3.7_dmlab_vision_' + time.strftime("%m-%d_%H:%M", time.localtime())
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
@@ -305,16 +362,17 @@ def train():
     log.addHandler(fh)
 
     # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=rnn, iterator=iterator)
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=rnn, step=tf.Variable(0))
-    check_dir = FLAGS.saver_results_directory + "/model/ckpt_py3" + time.strftime("%m-%d_%H:%M", time.localtime())
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=vision_nn)
+    check_dir = FLAGS.saver_results_directory + "/result/model/vision_ckpt_dmlab" + time.strftime("%m-%d_%H:%M", time.localtime())
 
     manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
-                                         checkpoint_name='model_py3.ckpt')
+                                         checkpoint_name='vision_model_dmlab.ckpt')
 
     # uncomment this line to run in Eager mode for debugging
     # tf.config.run_functions_eagerly(True)
     for epoch in range(FLAGS.training_epochs):
         loss_acc = list()
+        eval_loss_acc = []
         if FLAGS.model_nh_bottleneck:
             log.info("Adding dropout layers")
         for _ in range(FLAGS.training_steps_per_epoch):
@@ -327,7 +385,6 @@ def train():
 
         log.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
                  np.mean(loss_acc), np.std(loss_acc))
-        checkpoint.step.assign_add(1)
         # tf.compat.v1.logging.info('Epoch %i, mean loss %.5f, std loss %.5f', epoch,
         #                           np.mean(loss_acc), np.std(loss_acc))
         if epoch % FLAGS.saver_eval_time == 0:
@@ -335,36 +392,42 @@ def train():
             for _ in range(FLAGS.training_evaluation_minibatch_size //
                            FLAGS.training_minibatch_size):
                 train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
-                init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
+                init_pos, init_hd, ego_vel, target_pos, target_hd, frame = train_traj
                 conc_inputs, initial_conds, ensembles_targets = prepare_data(train_traj)
-                eval_ensembles_logits, eval_bottleneck, eval_lstm_output = eval_step(ensembles_targets, conc_inputs,
-                                                                                     initial_conds)
-                mb_res = {
-                    'bottleneck': eval_bottleneck,
-                    'lstm': eval_lstm_output,
-                    'pos_xy': target_pos
-                }
-                res = utils.new_concat_dict(res, mb_res)  # evaluation output
+                eval_ensembles_logits, eval_bottleneck_output, eval_loss = eval_step(ensembles_targets, conc_inputs, initial_conds)
+                eval_loss_acc.append(eval_loss)
+
+            log.info('Epoch %i, evaluation mean loss %.5f, std loss %.5f', epoch, np.mean(eval_loss_acc),
+                     np.std(eval_loss_acc))
+
+                # mb_res = {
+                #     'conv': eval_bottleneck,
+                #     'lstm': eval_lstm_output,
+                #     'pos_xy': target_pos
+                # }
+                # res = utils.new_concat_dict(res, mb_res)  # evaluation output
                 # print(_)
 
             # Store at the end of validation
             if epoch % FLAGS.saver_pdf_time == 0:
-                filename = 'rates_and_sac_latest_hd_py3.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
-                save_path = manager.save()
-                log.info("Saved checkpoint for epoch {}: {}".format(int(checkpoint.step), save_path))
+            #     filename = 'rates_and_sac_latest_hd_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+            #     plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
+                manager.save()
+            #
+            # utils.plot_trajectories(res['pos_xy'], res['pos_xy'], 10, FLAGS.saver_results_directory+'/result', plotname, axis_min=-1.25, axis_max=1.25)
 
-            grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
-                'btln_60_separation'], grid_scores[
-                'btln_90_separation'] = utils.get_scores_and_plot(
-                latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
-                FLAGS.saver_results_directory, filename)
-            grid_scores_60 = grid_scores['btln_60']
-            grid_mask = np.zeros_like(grid_scores_60)
-            grid_mask[grid_scores_60 >= 0.37] = 1
-            num_grid_cells = np.sum(grid_mask)
-            log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
-
+            # grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
+            #     'btln_60_separation'], grid_scores[
+            #     'btln_90_separation'] = utils.get_scores_and_plot(
+            #     latest_epoch_scorer, res['pos_xy'], res['bottleneck'],
+            #     FLAGS.saver_results_directory+'/result', filename)
+            # grid_scores_60 = grid_scores['btln_60']
+            # grid_mask = np.zeros_like(grid_scores_60)
+            # grid_mask[grid_scores_60 >= 0.37] = 1
+            # num_grid_cells = np.sum(grid_mask)
+            # log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
 
 
 if __name__ == '__main__':
     train()
+

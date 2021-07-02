@@ -132,7 +132,7 @@ class VisionModule(snt.Module):
         conv_out = self.conv_layer4(conv_out)
         conv_out = tf.nn.relu(conv_out)
 
-        conv_out = tf.reshape(conv_out,(shape[0]*shape[1], -1))
+        conv_out = tf.reshape(conv_out, (shape[0]*shape[1], -1))
         # for layer in self.conv_net:
         #     conv_out = layer[conv_out]
         #     conv_out = tf.nn.relu(conv_out)
