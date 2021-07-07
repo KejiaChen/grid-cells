@@ -134,3 +134,4 @@ data/
 result/
 log/
 dm_lab_data/
+wandb/
