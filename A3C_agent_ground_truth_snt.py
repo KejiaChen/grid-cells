@@ -7,15 +7,14 @@ import tensorflow as tf
 import tqdm
 from absl import flags
 import sys
-from matplotlib import pyplot as plt
-from tensorflow.keras import layers
+import sonnet as snt
 import tensorflow_probability as tfp
 from typing import Any, List, Sequence, Tuple
 # from threading import Thread, Lock
 import threading
 from collections import namedtuple
 from A3C_utils import *
-from A3C_models import *
+from A3C_models_snt import *
 import json
 from dmlab_maze.dm_env.A3CLabEnv import RandomMaze
 import logging
@@ -57,7 +56,7 @@ flags.DEFINE_integer("backprop_len",
                      100,  # 100
                      "backpropagation steps in actor-critic learner")
 flags.DEFINE_integer("save_interval",
-                     3,
+                     50,
                      "backpropagation steps in actor-critic learner")
 flags.DEFINE_integer("action_repeat",
                      4,
@@ -187,92 +186,97 @@ def make_environment(level):
     return myEnv
 
 
-class ACModel(tf.keras.Model):
-    """Network Structure"""
+class ACCell(snt.RNNCore):
+    """LSTM core implementation for the ACModel network."""
+
     def __init__(self, num_actions, num_hidden_units):
+        super(ACCell, self).__init__()
+        self._nh_lstm = num_hidden_units
+        self._nh_act = num_actions
+
+        self._lstm = snt.LSTM(self._nh_lstm)
+        # b_init=truncated_normal_inital)
+        self.actor = snt.Linear(self._nh_act, name="actor")
+        self.critic = snt.Linear(1, name="critic")
+
+    def initial_state(self, batch_size=1, **kwargs):
+        hidden = tf.zeros(shape=(batch_size, self._nh_lstm))
+        cell = tf.zeros(shape=(batch_size, self._nh_lstm))
+        return snt.LSTMState(hidden, cell)
+
+    def __call__(self, inputs, prev_state):
+        x, state = self._lstm(inputs, prev_state)
+        return tf.nn.softmax(self.actor(x)), self.critic(x), state
+
+
+class ACModel(snt.Module):
+    """Network Structure"""
+    def __init__(self, rnn_cell, num_hidden_units):
         super(ACModel, self).__init__()
-        self.fc1 = layers.Dense(128)
-        self.lrelu1 = layers.LeakyReLU(0.1)
-        self.fc2 = layers.Dense(256)
-        self.lrelu2 = layers.LeakyReLU(0.1)
-        self.fc3 = layers.Dense(256)
-        self.lrelu3 = layers.LeakyReLU(0.1)
+        self._nh_lstm = num_hidden_units
+        # self._nh_act = num_actions
 
-        self.lstm = layers.LSTMCell(num_hidden_units)  # activation="relu")
-        self.actor = layers.Dense(num_actions, activation="softmax")
-        self.critic = layers.Dense(1)
+        self.fc1 = snt.Linear(128)
+        self.fc2 = snt.Linear(256)
+        self.fc3 = snt.Linear(256)
 
-    def call(self, inputs):
-        x, (ht, ct) = inputs
+        self._core = rnn_cell
+        self.h_0 = tf.zeros(shape=(1, self._nh_lstm))
+        self.c_0 = tf.zeros(shape=(1, self._nh_lstm))
+
+    def __call__(self, inputs):
+        # initial_lstm_state = snt.LSTMState(self.h_0, self.c_0)  # initialize every new episode?
+        x, prev_state = inputs
 
         x = self.fc1(x)
-        x = self.lrelu1(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
         x = self.fc2(x)
-        x = self.lrelu2(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
         x = self.fc3(x)
-        x = self.lrelu3(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
 
-        x, (ht, ct) = self.lstm(x, states=[ht, ct])
-        return self.actor(x), self.critic(x), (ht, ct)
+        # output_seq, final_state = snt.dynamic_unroll(core=self._core,
+        #                                              input_sequence=x,
+        #                                              # initial_state=(init_lstm_state,
+        #                                              #                init_lstm_cell)
+        #                                              initial_state=initial_lstm_state)
+
+        actor, critic, state = self._core(x, prev_state)
+
+        return actor, critic, state
 
 
 class ActorCritic:
     def __init__(
             self,
-            num_actions,
+            rnn_cell,
             num_hidden_units,
             optimizer,
             weights_path=None,
             pretrained=False):
         """Initialize."""
         super(ActorCritic, self).__init__()
-        self.n_acts = num_actions
+        self.core = rnn_cell
         self.n_units = num_hidden_units
         self.model = self.build_model(pretrained, weights_path)
         self.opt = optimizer
 
     def build_model(self, pretrained, weights_path):
-        model = ACModel(self.n_acts, self.n_units)
+        model = ACModel(self.core, self.n_units)
         if pretrained:
+            # TODO: change to sonnet style
             model.load_weights(weights_path)
             print("Model load weights successfully")
 
         # model initialization
-        (ht, ct) = (tf.zeros((1, self.n_units)), tf.zeros((1, self.n_units)))
+        initial_lstmstate = snt.LSTMState(tf.zeros((1, self.n_units)), tf.zeros((1, self.n_units)))
         # input to NN: [input_squence, batch_size, input_size]
-        # ground truth input_size = pos + rots + action + reward = 5
-        _, _, (_, _) = model((tf.random.normal([64, 5]), (ht, ct)))
+        # ground truth input_size = pos + rots + action + reward =
+
+        # passing an example to get trainable variables
+
+        _, _, _ = model((tf.random.normal([64, 5]), initial_lstmstate))
         return model
-
-    # def call(self, inputs):
-    #     return self.model(inputs)
-
-    # def compute_loss(self, actions, logits, advantages, v_pred, td_targets):
-    #     # mean = tf.keras.metrics.Mean()
-    #     # mean.update_state(td_targets, sample_weight=logits)
-    #     # loss_policy = mean
-    #     sparsece_loss = tf.keras.losses.SparseCategoricalCrossentropy(
-    #         from_logits=True)
-    #     ce_loss = tf.keras.losses.CategoricalCrossentropy(
-    #         from_logits=True)
-    #     mse = tf.keras.losses.MeanSquaredError()
-    #     actions = tf.cast(actions, tf.int32)  # shpae[5,1], 0 or 1
-    #     policy_loss = sparsece_loss(
-    #         actions, logits, sample_weight=tf.stop_gradient(advantages))  # why?
-    #     entropy_loss = ce_loss(logits, logits)  # to be maximized
-    #     critic_loss = mse(td_targets, v_pred)  # to be minimized
-    #
-    #     loss = policy_loss + FLAGS.alpha*critic_loss - FLAGS.beta*entropy_loss
-    #     return loss
-    #
-    # def train(self, states, actions, advantages, td_targets):
-    #     with tf.GradientTape() as tape:
-    #         logits, v_pred = self.model(states)
-    #         assert v_pred.shape == td_targets.shape
-    #         loss = self.compute_loss(actions, logits, advantages, v_pred, tf.stop_gradient(td_targets))
-    #     grads = tape.gradient(loss, self.model.trainable_variables)
-    #     self.opt.apply_gradients(zip(grads, self.model.trainable_variables))
-    #     return loss
 
 
 class LearnerAgent:
@@ -286,7 +290,12 @@ class LearnerAgent:
         self.action_dim = len(ACTION_LIST)
         self.opt = optimizer
 
-        self.global_actor_critic = ActorCritic(num_actions=self.action_dim,
+        self.ac_cell = ACCell(num_actions=self.action_dim,
+                              num_hidden_units=FLAGS.model_nh_lstm)
+        # self.global_actor_critic = ActorCritic(num_actions=self.action_dim,
+        #                                        num_hidden_units=FLAGS.model_nh_lstm)
+        #                                        # optimizer=self.opt)
+        self.global_actor_critic = ActorCritic(rnn_cell=self.ac_cell,
                                                num_hidden_units=FLAGS.model_nh_lstm,
                                                optimizer=self.opt)
         self.num_workers = num_worker
@@ -377,8 +386,13 @@ class WorkerAgent(threading.Thread):
 
         self.max_episodes = max_episodes
         self.global_actor_critic = global_actor_critic
-        self.actor_critic = ActorCritic(num_actions=self.action_dim,
-                                        num_hidden_units=256,
+        # self.actor_critic = ActorCritic(num_actions=self.action_dim,
+        #                                 num_hidden_units=256)
+        #                                 # optimizer=optimizer)
+        self.ac_cell = ACCell(num_actions=self.action_dim,
+                              num_hidden_units=FLAGS.model_nh_lstm)
+        self.actor_critic = ActorCritic(rnn_cell=self.ac_cell,
+                                        num_hidden_units=FLAGS.model_nh_lstm,
                                         optimizer=optimizer)
         self.model = self.actor_critic.model
         # self.logger = logger
@@ -427,7 +441,7 @@ class WorkerAgent(threading.Thread):
         if not done:
             last_value = next_v_value
         else:
-            last_value = tf.zeros((1, 1), dtype="float64")
+            last_value = tf.zeros((1, 1), dtype="float32")
         td_targets = [last_value]
 
         for i in reversed(range(len(rewards))):
@@ -453,7 +467,7 @@ class WorkerAgent(threading.Thread):
         Reference:
         https://github.com/iverxin/rl_impl
         """
-        for worker_para, global_para in zip(self.model.trainable_variables,
+        for worker_para, global_para in zip(self.actor_critic.model.trainable_variables,
                                             self.global_actor_critic.model.trainable_variables):
             worker_para.assign(global_para)
 
@@ -464,7 +478,7 @@ class WorkerAgent(threading.Thread):
                 s = s + x
             elif isinstance(x, int) or isinstance(x, float):
                 s.append(x)
-        return np.expand_dims(np.array(s), axis=0)
+        return np.expand_dims(np.array(s).astype("float32"), axis=0)
 
     def train(self):
         global CUR_EPISODE  # current episode
@@ -509,9 +523,9 @@ class WorkerAgent(threading.Thread):
                     # resize_obs = -1 + (last_obs - 1) / 127
                     reward = 0
                     state = self.concatenate((pos, rots, action_index, reward))
-                    # initialize lstm
                     ht = tf.zeros((1, FLAGS.model_nh_lstm))
                     ct = tf.zeros((1, FLAGS.model_nh_lstm))
+                    lstmstate = snt.LSTMState(ht, ct)
 
                     new_start = False
 
@@ -523,13 +537,14 @@ class WorkerAgent(threading.Thread):
                 with tf.GradientTape() as tape:
                     for update_step in range(FLAGS.backprop_len):
                     # if CUR_EPISODE % FLAGS.backprop_len == 0:
-                        probs, value, (ht, ct) = self.actor_critic.model((state, (ht, ct)))
+                    #     probs, value, (ht, ct) = self.actor_critic.model((state, (ht, ct)))
+                        probs, value, lstmstate = self.actor_critic.model((state, lstmstate))
                         # action_index = np.random.choice(self.action_dim, p=probs[0])
                         dist = tfp.distributions.Categorical(logits=probs)
                         action_index = ((dist.sample()).numpy()).tolist()
                         if action_index[0] == 6:
                             print("state:", state)
-                            print("ht, ct:", ht, ct)
+                            # print("ht, ct:", ht, ct)
                             print("action index:", action_index)
                             print(probs)
                         # action = tf.gather(ACTION_LIST, action_index)
@@ -565,7 +580,7 @@ class WorkerAgent(threading.Thread):
 
                     # output = tf.scan(step, tf.range(FLAGS.backprop_length), first_values)
 
-                    _, next_v_value, (_, _) = self.actor_critic.model((next_state, (ht, ct)))
+                    _, next_v_value, lstmstate = self.actor_critic.model((next_state, lstmstate))
                     td_targets = self.n_step_td_target(rewards, next_v_value, done)
                     # _, baselines = self.actor_critic.model.predict(states)
 
@@ -587,7 +602,7 @@ class WorkerAgent(threading.Thread):
                     loss = compute_loss(q_values=td_targets, baseline=values)
 
                 with self.lock:
-                    grads = tape.gradient(loss, self.model.trainable_variables)
+                    grads = tape.gradient(loss, self.actor_critic.model.trainable_variables)
                     # grads, _ = tf.clip_by_global_norm(grads, args.max_grad_norm)
                     self.global_actor_critic.opt.apply_gradients(zip(grads,
                                                                      self.global_actor_critic.model.trainable_variables))
