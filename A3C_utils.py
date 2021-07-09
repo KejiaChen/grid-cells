@@ -16,7 +16,7 @@ import IPython.terminal.debugger as Debug
 import IPython.display as display
 import PIL.Image as Image
 
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'done'))
+Transition = namedtuple('Transition', ('pos', 'rots', 'vel'))
 
 
 def _get_dataset_files(dateset_info, root):

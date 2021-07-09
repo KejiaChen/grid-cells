@@ -33,7 +33,7 @@ import time
 
 matplotlib.use('Agg')
 
-import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
+import supervised_training.dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
 import model_new as model    # pylint: disable=g-bad-import
 import scores_new as scores    # pylint: disable=g-bad-import-order
 import utils_new as utils   # pylint: disable=g-bad-import-order
@@ -130,6 +130,7 @@ FLAGS(sys.argv)
 
 FILE_PATH = os.path.realpath(__file__)
 FILE_DIR, _ = os.path.split(FILE_PATH)
+
 
 def train():
     """Training loop."""

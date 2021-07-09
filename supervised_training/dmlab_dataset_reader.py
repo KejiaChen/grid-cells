@@ -28,7 +28,7 @@ from absl import flags
 import PIL.Image as Image
 
 import sys
-import utils_new as utils
+import supervised_training.utils_new as utils
 # comment these lines when run train.py
 # Task config
 # flags.DEFINE_string("task_dataset_info", "square_room",

@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-import ensembles_new as ensembles    # pylint: disable=g-bad-import-order
+import supervised_training.ensembles_new as ensembles    # pylint: disable=g-bad-import-order
 
 np.seterr(invalid="ignore")
 

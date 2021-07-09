@@ -35,10 +35,10 @@ import time
 
 matplotlib.use('Agg')
 
-import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
-import model_new as model    # pylint: disable=g-bad-import
-import scores_new as scores    # pylint: disable=g-bad-import-order
-import utils_new as utils   # pylint: disable=g-bad-import-order
+import supervised_training.dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
+import supervised_training.model_new as model    # pylint: disable=g-bad-import
+import supervised_training.scores_new as scores    # pylint: disable=g-bad-import-order
+import supervised_training.utils_new as utils   # pylint: disable=g-bad-import-order
 
 
 # Task config
