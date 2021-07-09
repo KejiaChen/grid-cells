@@ -4,15 +4,13 @@ import json
 from collections import namedtuple
 # from env.A3CLabEnv_dmlab import RandomMaze
 from collections import defaultdict
-from absl import flags
 import numpy as np
 import math
 import tensorflow as tf
 import tensorflow.keras.optimizers as optim
 from collections import defaultdict
 import sys
-from tensorflow import keras
-from tensorflow.keras import layers
+
 import tempfile
 import IPython.terminal.debugger as Debug
 import IPython.display as display
@@ -259,9 +257,10 @@ class SharedRMSprop(optim.Optimizer):
 
 
 class ReplayMemory(object):
-    '''
+    """
     Replay buffer to store the experience temporarily.
-    '''
+    To be stored: obs(or pos and rots), ego_vels
+    """
 
     def __init__(self, capacity):
         self.capacity = capacity
@@ -276,14 +275,24 @@ class ReplayMemory(object):
         # self.memory[self.position] = transition_dict
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size=100):
+    def sample(self, batch_size=10, sequence_length=100):
         if self.position == 0:
             print('error: empty memory when sampling')
             return []
         if self.position <= batch_size:
+            batch = self.memory
             return self.memory
         else:
-            return self.memory[-batch_size:]
+            batch = random.choices(self.memory, k=batch_size)
+        training_batch = []
+        for eps_traj in batch:
+            length = len(eps_traj)
+            start_index = random.randint(1, length-sequence_length)
+            start_index -= 1
+            end_index = start_index + sequence_length
+            traj = eps_traj[start_index:end_index]
+            training_batch.append(traj)
+            return training_batch
 
     def clear(self):
         self.memory = []

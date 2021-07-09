@@ -152,7 +152,7 @@ class RandomMaze(object):
         x_scale = self.coord_range / (1083 - 115)
         # y_scale = 2.5 / (1083 - 116)
         real_pos = -0.5 * self.coord_range + (raw_pos - 116) * x_scale  # rescale position to (-1.25, 1.25)
-        return real_pos
+        return real_pos.astype('float32')
 
     # reset function
     def reset(self, configs):

@@ -194,6 +194,7 @@ class GridCellsRNN(snt.Module):
         # Calculate initialization for LSTM. Concatenate pc and hdc activations
         concat_init = tf.concat(init_conds, axis=1)
 
+        # also previous states
         init_lstm_state = self.initial_pc(concat_init)
         init_lstm_cell = self.initial_hd(concat_init)
         inital_lstmstate = snt.LSTMState(init_lstm_state, init_lstm_cell)

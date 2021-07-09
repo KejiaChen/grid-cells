@@ -5,8 +5,6 @@ import statistics
 import wandb
 import tensorflow as tf
 import tqdm
-from absl import flags
-import sys
 import sonnet as snt
 import tensorflow_probability as tfp
 from typing import Any, List, Sequence, Tuple
@@ -15,103 +13,24 @@ import threading
 from collections import namedtuple
 from A3C_utils import *
 from A3C_models_snt import *
+from Flags import *
 import json
 from dmlab_maze.dm_env.A3CLabEnv import RandomMaze
 import logging
-from logging.handlers import RotatingFileHandler
 import time
+from gridcell_agent import *
 # from env.A3CLabEnv import RandomMaze
 from multiprocessing import cpu_count
 
-# Task config
-flags.DEFINE_string("task_root",
-                    "/home/learning/Documents/kejia/grid-cells",
-                    # None,
-                    "Dataset path.")
-flags.DEFINE_string("data_root",
-                    "/home/learning/Documents/kejia/grid-cells/dm_lab_data/",
-                    "path of the dataset folder to store data")
-flags.DEFINE_string("map_name",
-                    "map_10_0.txt",
-                    "name of the txt map")
-flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/",
-                    # None,
-                    "Path to directory for saving results.")
+FILE_PATH = os.path.realpath(__file__)
+FILE_DIR, _ = os.path.split(FILE_PATH)
 
-# Training config
-flags.DEFINE_string("training_optimizer_options",
-                    "{'learning_rate': 1e-6, 'momentum': 0.99}",  # lr [1e-6, 2e-4]
-                    "Defines a dict with opts passed to the optimizer.")
-flags.DEFINE_float("alpha",
-                   0.50,  # [0.48, 0.52]
-                   "baseline cost")
-flags.DEFINE_float("beta",
-                   8e-5,  # [6e-5, 1e-4]
-                   "entropy regularization")
-flags.DEFINE_float("gamma",
-                   0.99,
-                   "discount factor in the value function")
-flags.DEFINE_integer("backprop_len",
-                     100,  # 100
-                     "backpropagation steps in actor-critic learner")
-flags.DEFINE_integer("save_interval",
-                     50,
-                     "backpropagation steps in actor-critic learner")
-flags.DEFINE_integer("action_repeat",
-                     4,
-                     "repeat each action selected by the actor")
-flags.DEFINE_integer("num_worker",
-                     32,
-                     "number of workers each running on one thread")
-flags.DEFINE_integer("max_episode_length",
-                     5400,  # 5400
-                     "Number of maximum training steps in one episode.")
-flags.DEFINE_integer("episode_num",
-                     1000,
-                     "Number of episodes.")
-flags.DEFINE_string("training_optimizer_class",
-                    "tf.keras.optimizers.RMSprop",
-                    "The optimizer used for training.")
-
-# Model config
-flags.DEFINE_integer("model_nh_lstm",
-                     256,
-                     "Number of hidden units in LSTM.")
-
-# Environment config
-flags.DEFINE_float("coord_range",
-                    2.5,
-                    "coordinate range of the dmlab room")
-flags.DEFINE_integer("dataset_size",
-                     100,
-                     "number of files in the dataset")
-flags.DEFINE_integer("file_length",
-                     100,
-                     "number of trajectories in each file")
-flags.DEFINE_integer("eps_length",
-                     100,
-                     "number of steps in each trajectory")
-
-
-FLAGS = flags.FLAGS
-FLAGS(sys.argv)
-
-tf.keras.backend.set_floatx('float64')  # 64
 # wandb.init(name='A3C', project="deep-rl-tf2")
-
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--gamma', type=float, default=0.99)
-# parser.add_argument('--update_interval', type=int, default=5)
-# parser.add_argument('--actor_lr', type=float, default=0.0005)
-# parser.add_argument('--critic_lr', type=float, default=0.001)
-#
-# args = parser.parse_args()
 
 COORD = tf.train.Coordinator()
 CUR_EPISODE = 0
 # Transition = namedtuple('Transition', ('obs', 'action', 'reward', 'pos', 'rots', 'trans_vel', 'ang_vel', 'done'))
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'done'))
+Transition = namedtuple('Transition', ('pos', 'rots', 'vel'))
 
 
 # actions in Deepmind
@@ -215,12 +134,12 @@ class ActorCritic:
 
         # passing an example to get trainable variables
 
-        _, _, _ = model((tf.random.normal([64, 5]), initial_lstmstate))
+        _, _, _ = model((tf.random.normal([64, 517]), initial_lstmstate))
         return model
 
 
 class LearnerAgent:
-    def __init__(self, env_name, optimizer, num_worker, memory_size=10000):
+    def __init__(self, env_name, a3c_optimizer, grid_optimizer, num_worker, memory_size=2e7):
         # env = gym.make(env_name)
         # self.map_name = map_name
         self.env_name = env_name
@@ -228,16 +147,23 @@ class LearnerAgent:
         self.replay_buffer = ReplayMemory(memory_size)
         # self.state_dim = env.observation_space.shape[0]
         self.action_dim = len(ACTION_LIST)
-        self.opt = optimizer
+        self.a3c_opt = a3c_optimizer
+        self.grid_opt = grid_optimizer
 
         self.ac_cell = ACCell(num_actions=self.action_dim,
-                              num_hidden_units=FLAGS.model_nh_lstm)
+                              num_hidden_units=FLAGS.policy_nh_lstm)
         # self.global_actor_critic = ActorCritic(num_actions=self.action_dim,
         #                                        num_hidden_units=FLAGS.model_nh_lstm)
         #                                        # optimizer=self.opt)
         self.global_actor_critic = ActorCritic(rnn_cell=self.ac_cell,
-                                               num_hidden_units=FLAGS.model_nh_lstm,
-                                               optimizer=self.opt)
+                                               num_hidden_units=FLAGS.policy_nh_lstm,
+                                               optimizer=self.a3c_opt)
+        # With pretrained model
+        ckpt_path = '/home/learning/Documents/kejia/grid-cells/result/model/ckpt_dmlab04-07_21:22/model_dmlab.ckpt-20'
+        self.grid_cell_model = GridModel(optimizer=self.grid_opt,
+                                         ckpt_path=ckpt_path,
+                                         load_model=True)
+
         self.num_workers = num_worker
         self.logger = self.setup_logger()
 
@@ -292,18 +218,19 @@ class LearnerAgent:
         # fh.setFormatter(formatter)
         # log.addHandler(fh)
 
-
         # save the model
-        checkpoint = tf.train.Checkpoint(optimizer=self.opt, net=self.global_actor_critic.model)
-        check_dir = FLAGS.saver_results_directory + "/result/model/ckpt_dmlab_A3C" + time.strftime("%m-%d_%H:%M",
+        checkpoint = tf.train.Checkpoint(optimizer=self.a3c_opt, net=self.global_actor_critic.model)
+        check_dir = FLAGS.saver_results_directory + "/result/model/ckpt_dmlab_A3C_grid" + time.strftime("%m-%d_%H:%M",
                                                                                                time.localtime())
         manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
-                                             checkpoint_name='model_A3C.ckpt')
+                                             checkpoint_name='model_A3C_grid.ckpt')
 
         for i in range(self.num_workers):
             env = make_environment(self.env_name)
-            workers.append(WorkerAgent(
-                env, self.global_actor_critic, max_episodes, self.opt, manager, i, self.logger, self.stats_dict))
+            workers.append(WorkerAgent(env, self.global_actor_critic, max_episodes, self.a3c_opt, manager, i, self.logger,
+                                       self.stats_dict, self.replay_buffer, self.grid_cell_model))
+
+        # workers.append(GridAgent(self.replay_buffer, self.grid_cell_model))
 
         for worker in workers:
             worker.start()
@@ -316,9 +243,9 @@ class LearnerAgent:
 
 class WorkerAgent(threading.Thread):
     def __init__(self, env, global_actor_critic, max_episodes, optimizer, ckpt_manager, index, logger, save_dict,
-                 memory_size=10000):
+                 replay_buffer, grid_model):
         threading.Thread.__init__(self)
-        self.replay_buffer = ReplayMemory(memory_size)
+        self.replay_buffer = replay_buffer
         self.lock = threading.Lock()
         self.env = env
         # self.state_dim = self.env.observation_space.shape[0]
@@ -326,13 +253,15 @@ class WorkerAgent(threading.Thread):
 
         self.max_episodes = max_episodes
         self.global_actor_critic = global_actor_critic
+        self.grid_cell = grid_model
+        self.goal_grid_code = None
         # self.actor_critic = ActorCritic(num_actions=self.action_dim,
         #                                 num_hidden_units=256)
         #                                 # optimizer=optimizer)
         self.ac_cell = ACCell(num_actions=self.action_dim,
-                              num_hidden_units=FLAGS.model_nh_lstm)
+                              num_hidden_units=FLAGS.policy_nh_lstm)
         self.actor_critic = ActorCritic(rnn_cell=self.ac_cell,
-                                        num_hidden_units=FLAGS.model_nh_lstm,
+                                        num_hidden_units=FLAGS.policy_nh_lstm,
                                         optimizer=optimizer)
         self.model = self.actor_critic.model
         # self.logger = logger
@@ -353,7 +282,7 @@ class WorkerAgent(threading.Thread):
 
     def setup_logger(self):
         # logging configs
-        log_name = 'A3C_ground_truth' + time.strftime("%m-%d_%H:%M", time.localtime()) + str(self.thread_name)
+        log_name = 'A3C_ground_truth_grid' + time.strftime("%m-%d_%H:%M", time.localtime()) + str(self.thread_name)
         logging.basicConfig(level=logging.INFO,
                             format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                             datefmt='%a, %d %b %Y %H:%M:%S',
@@ -418,7 +347,29 @@ class WorkerAgent(threading.Thread):
                 s = s + x
             elif isinstance(x, int) or isinstance(x, float):
                 s.append(x)
-        return np.expand_dims(np.array(s).astype("float32"), axis=0)
+        return  tf.constant([s], dtype=tf.float32)
+        # return np.expand_dims(np.array(s).astype("float32"), axis=0)
+
+    def concat_grid(self, pos, rots, ego_vel, action_index, reward, done):
+        env_state = self.concatenate((pos, rots, action_index, reward))
+
+        # grid cell model initializaiton
+        with self.lock:
+            ensemble_pose = utils.encode_initial_conditions(tf.constant([pos]), tf.constant([[rots]]),
+                                                            self.grid_cell.place_cell_ensembles,
+                                                            self.grid_cell.head_direction_ensembles)
+            # gird code, output shape [1, 1, 256]
+            current_grid_code = self.grid_cell.forward_grid_code(ensemble_pose, tf.constant([[ego_vel]]))
+        current_grid_code = tf.squeeze(current_grid_code, axis=0)
+
+        if self.goal_grid_code is None:
+            self.goal_gird_code = tf.zeros_like(current_grid_code, dtype=tf.float32)
+        else:
+            if done:
+                self.goal_grid_code = current_grid_code
+
+        state = tf.concat((self.goal_gird_code, current_grid_code, env_state),axis=-1)
+        return state
 
     def train(self):
         global CUR_EPISODE  # current episode
@@ -427,6 +378,11 @@ class WorkerAgent(threading.Thread):
         self.logger.info("initialize on thread %s", self.thread_name)
 
         while not COORD.should_stop():
+            # traj_ego_vel = []
+            # traj_target_pos = []
+            # traj_target_hd = []
+            # traj_obs_img = []
+
             if CUR_EPISODE > FLAGS.episode_num:
                 done = 1
                 print("Training ends at maximum number of episodes")
@@ -455,6 +411,11 @@ class WorkerAgent(threading.Thread):
 
             # self.env.show_front_view()
 
+            # vel_eps_trajectory = []
+            # pos_trajectory = []
+            # hd_trajectory = []
+            # obs_trajectory = []
+
             # while not done:
             while episode_length < FLAGS.max_episode_length:
                 if new_start:
@@ -462,10 +423,20 @@ class WorkerAgent(threading.Thread):
                     last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
                     # resize_obs = -1 + (last_obs - 1) / 127
                     reward = 0
-                    state = self.concatenate((pos, rots, action_index, reward))
-                    ht = tf.zeros((1, FLAGS.model_nh_lstm))
-                    ct = tf.zeros((1, FLAGS.model_nh_lstm))
+                    done = 0
+
+                    state = self.concat_grid(pos, rots, ego_vel, action_index, reward, done)
+                    # state = self.concatenate((pos, rots, action_index, reward))
+
+                    # policy listm initial state
+                    ht = tf.zeros((1, FLAGS.policy_nh_lstm))
+                    ct = tf.zeros((1, FLAGS.policy_nh_lstm))
                     lstmstate = snt.LSTMState(ht, ct)
+
+                    ego_vel_list = []
+                    target_pos_list = []
+                    target_hd_list = []
+                    # obs_img_list = []
 
                     new_start = False
 
@@ -494,16 +465,23 @@ class WorkerAgent(threading.Thread):
                         entropy = dist.entropy()
 
                         last_obs, reward, done, last_dist, pos, rots, ego_vel, none_dict = self.env.step(action, FLAGS.action_repeat)
+                        resize_obs = -1 + (last_obs - 1) / 127
+
+                        ego_vel_list.append(np.array(ego_vel))
+                        target_pos_list.append(np.array(pos))
+                        target_hd_list.append(rots)
+                        # obs_img_list.append(resize_obs)
+
                         if done:
                             print("Reach the goal!")
                             new_start = True
                         episode_length += 1
-                        resize_obs = -1 + (last_obs - 1) / 127
+
                         # print("pos:", pos)
                         if episode_length >= FLAGS.max_episode_length:
                             new_start = True
 
-                        next_state = self.concatenate((pos, rots, action_index, reward))
+                        next_state = self.concat_grid(pos, rots, ego_vel, action_index, reward, done)
 
                         # self.env.show_front_view(CUR_EPISODE)
 
@@ -516,6 +494,16 @@ class WorkerAgent(threading.Thread):
                         state = next_state
 
                         if new_start:
+                            if len(target_hd_list) < (FLAGS.sequence_length+1):
+                                with self.lock:
+                                    vel_eps_traj = tf.stack(ego_vel_list, axis=0)
+                                    pos_eps_traj = tf.stack(target_pos_list, axis=0)
+                                    hd_eps_traj = tf.stack(target_hd_list, axis=0)
+                                    # obs_eps_traj = tf.stack(obs_img_list, axis=0)
+                                    self.replay_buffer.push(pos_eps_traj, hd_eps_traj, vel_eps_traj)
+                                    print("push trajectory to replay buffer")
+                            else:
+                                print("dropped short trajectory")
                             break
 
                     # output = tf.scan(step, tf.range(FLAGS.backprop_length), first_values)
@@ -558,6 +546,13 @@ class WorkerAgent(threading.Thread):
 
             print('EP{} EpisodeReward={}'.format(CUR_EPISODE, episode_reward))
             # wandb.log({'Reward': episode_reward})
+
+            # vel_eps_trajectory = tf.stack(traj_ego_vel, axis=0)
+            # pos_trajectory = tf.stack(traj_target_pos, axis=0)
+            # hd_trajectory = tf.stack(traj_target_hd, axis=0)
+            # obs_trajectory = tf.stack(traj_obs_img, axis=0)
+            # self.replay_buffer.push(vel_trajectory, pos_trajectory, hd_trajectory, obs_trajectory)
+
             self.stats_dict.update("episode_reward", episode_reward)
             self.logger.info('Episode %i, reward %.5f, length %i, on %s', CUR_EPISODE, episode_reward,
                              episode_length, self.thread_name)
@@ -568,15 +563,22 @@ class WorkerAgent(threading.Thread):
         self.train()
 
 
+
 def main():
-    optimizer_class = eval(FLAGS.training_optimizer_class)
+    a3c_optimizer_class = eval(FLAGS.A3C_training_optimizer_class)
     # TODO: rmsprop with shared statistics
-    optimizer = optimizer_class(**eval(FLAGS.training_optimizer_options))
+    a3c_optimizer = a3c_optimizer_class(**eval(FLAGS.A3C_training_optimizer_options))
+
+    grid_optimizer_class = eval(FLAGS.training_optimizer_class)
+    grid_optimizer = grid_optimizer_class(**eval(FLAGS.training_optimizer_options))
+
     env_name = "nav_random_maze"
     # env_name = 'contributed/dmlab30/rooms_watermaze'
 
-    agent = LearnerAgent(env_name, optimizer, num_worker=3, memory_size=10000)
+    agent = LearnerAgent(env_name, a3c_optimizer, grid_optimizer, num_worker=3, memory_size=10000)
     agent.train()
+
+
 
 
 if __name__ == "__main__":

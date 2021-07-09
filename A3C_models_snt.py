@@ -2,6 +2,66 @@ import sonnet as snt
 from A3C_utils import *
 
 
+class ACCell(snt.RNNCore):
+    """LSTM core implementation for the ACModel network."""
+
+    def __init__(self, num_actions, num_hidden_units):
+        super(ACCell, self).__init__()
+        self._nh_lstm = num_hidden_units
+        self._nh_act = num_actions
+
+        self._lstm = snt.LSTM(self._nh_lstm)
+        # b_init=truncated_normal_inital)
+        self.actor = snt.Linear(self._nh_act, name="actor")
+        self.critic = snt.Linear(1, name="critic")
+
+    def initial_state(self, batch_size=1, **kwargs):
+        hidden = tf.zeros(shape=(batch_size, self._nh_lstm))
+        cell = tf.zeros(shape=(batch_size, self._nh_lstm))
+        return snt.LSTMState(hidden, cell)
+
+    def __call__(self, inputs, prev_state):
+        x, state = self._lstm(inputs, prev_state)
+        return tf.nn.softmax(self.actor(x)), self.critic(x), state
+
+
+class ACModel(snt.Module):
+    """Network Structure"""
+    def __init__(self, rnn_cell, num_hidden_units):
+        super(ACModel, self).__init__()
+        self._nh_lstm = num_hidden_units
+        # self._nh_act = num_actions
+
+        self.fc1 = snt.Linear(128)
+        self.fc2 = snt.Linear(256)
+        self.fc3 = snt.Linear(256)
+
+        self._core = rnn_cell
+        self.h_0 = tf.zeros(shape=(1, self._nh_lstm))
+        self.c_0 = tf.zeros(shape=(1, self._nh_lstm))
+
+    def __call__(self, inputs):
+        # initial_lstm_state = snt.LSTMState(self.h_0, self.c_0)  # initialize every new episode?
+        x, prev_state = inputs
+
+        x = self.fc1(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
+        x = self.fc2(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
+        x = self.fc3(x)
+        x = tf.nn.leaky_relu(x, alpha=0.1)
+
+        # output_seq, final_state = snt.dynamic_unroll(core=self._core,
+        #                                              input_sequence=x,
+        #                                              # initial_state=(init_lstm_state,
+        #                                              #                init_lstm_cell)
+        #                                              initial_state=initial_lstm_state)
+
+        actor, critic, state = self._core(x, prev_state)
+
+        return actor, critic, state
+
+
 class ConvNet(snt.Module):
     def __init__(self,  **conv_kwarg):
         super(ConvNet, self).__init__()
@@ -9,7 +69,7 @@ class ConvNet(snt.Module):
         self.conv_layer2 = snt.Conv2D(32, 5, stride=2, padding='same', name="conv2")
         self.conv_layer3 = snt.Conv2D(64, 5, stride=2, padding='same', name="conv3")
         self.conv_layer4 = snt.Conv2D(128, 5, stride=2, padding='same', name="conv4")
-        self.bottleneck_layer = snt.Dense(self._nh_bottleneck, name="bottleneck")
+        self.bottleneck_layer = snt.Linear(self._nh_bottleneck, name="bottleneck")
 
     def call(self, frame):
         """
