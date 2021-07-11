@@ -154,6 +154,9 @@ class RandomMaze(object):
         real_pos = -0.5 * self.coord_range + (raw_pos - 116) * x_scale  # rescale position to (-1.25, 1.25)
         return real_pos.astype('float32')
 
+    # def map_config_scale(self, raw_axis):
+
+
     # reset function
     def reset(self, configs):
         """
@@ -230,6 +233,48 @@ class RandomMaze(object):
             self._lab.reset(episode=0)
         else:
             self._lab.reset()
+
+        """ initialize the 3D maze"""
+        # initialize the current state
+        self._current_state = self._lab.observations()
+        # initialize the current observations
+        # By default, the observation for current state is the first observation
+        self._last_observation = self._current_state[self._observation_names[0]]
+        # initialize the top down view
+        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
+        # initialize the goal observations
+        self._goal_observation = self.get_random_observations(self.goal_pos)
+        # initialize the positions and orientations
+        self._trans = list(map(self.position_scale, self._current_state['DEBUG.POS.TRANS']))[:2]
+        self._rots = math.radians(self._current_state['DEBUG.POS.ROT'][1])
+        # initialize the distance
+        self._last_distance = np.inf
+        # initialize the translational and angular velocity
+        self._vel_trans = np.sqrt(np.square(self.position_scale(self._current_state['VEL.TRANS'][0]))
+                                  + np.square(self.position_scale(self._current_state['VEL.TRANS'][1])))
+        self._vel_rots = math.radians(self._current_state['VEL.ROT'][1])
+        self._vel_ego = [self._vel_trans, math.sin(self._vel_rots), math.cos(self._vel_rots)]
+
+        return self._last_observation, self._goal_observation, self._trans, self._rots, self._vel_ego
+
+    def restart(self, new_start_pos):
+        """
+                Reset only start position
+        """
+
+        """ Navigation configurations"""
+        """
+            start amd goal positions will be updated if configs['start_pos'] and configs['goal_pos'] are not NONE.
+        """
+        # send initial position
+        if new_start_pos:
+            self.start_pos = new_start_pos if new_start_pos else self.start_pos
+            self.start_pos = self.position_map2maze(self.start_pos, self.maze_size)
+            self._lab.write_property("params.start_pos.x", str(self.start_pos[0]))
+            self._lab.write_property("params.start_pos.y", str(self.start_pos[1]))
+            self._lab.write_property("params.start_pos.yaw", str(self.start_pos[2]))
+
+        self._lab.reset()
 
         """ initialize the 3D maze"""
         # initialize the current state

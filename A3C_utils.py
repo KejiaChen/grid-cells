@@ -65,18 +65,44 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-def sample_maze(name, start_range=6):
+def random_pos(map, tag, range_len=6):
+    # range = 6 means agent starts from [4,5,6,7,8,9] in the map.txt
+    # search a position which is still empty
+    # to avoid P and G assigning to the same position
+    while True:
+        start_index = int((len(map)-1 - range_len)/2)  # 2
+        print(tag +" range l:[%d %d]" % (2+start_index, len(map)-start_index))
+        # start_l = int(random.uniform(2+start_index, len(map_txt)-start_index))
+        # map_list = list(range(1, len(map_txt)+1))
+        start_l_list = list(range(2+start_index, len(map)-start_index))
+        start_l = random.choice(start_l_list)
+        # start_l = 1
+        print(tag + " range s:[%d %d]" % (2+start_index, len(map[0])-1-start_index))
+        start_s_list = list(range(2+start_index, len(map[0])-1-start_index))
+        start_s = random.choice(start_s_list)
+        if map[start_l][start_s] == ' ':
+            map[start_l] = map[start_l][:start_s] + tag + map[start_l][start_s + 1:]
+            break
+    # start_s = 1
+    # start_s = int(random.uniform(2+start_index, len(map_txt[0])-1-start_index))
+    # map[start_l] = map[start_l][:start_s] + tag + map[start_l][start_s+1:]
+    return map
+
+
+def sample_maze(name, start_range=6, only_new_start=False):
     """
     map_name: name of the txt map file
     start_range
     """
     # load all example maze names
-    maze_names = os.listdir('./dmlab_maze/example/maps')
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    map_path = os.path.join(dir_path, 'dmlab_maze/example/maps/')
+    maze_names = os.listdir(map_path)
     # sample a maze
     # name = random.sample(maze_names, 1)[0]
     # name = 'map_10_0.txt'
     # name = FLAGS.map_name
-    with open('./dmlab_maze/example/maps/' + name, 'r') as f:
+    with open(map_path + name, 'r') as f:
         lines = f.readlines()
         map_txt = [l for l in lines]
     # obtain the maze size
@@ -87,22 +113,9 @@ def sample_maze(name, start_range=6):
     # start_range = 6
     # print("loaded map:", map_txt)
 
-    def random_start(map, range=6):
-        # range = 6 means agent starts from [4,5,6,7,8,9] in the map.txt
-        # map
-        start_index = int((len(map_txt)-1 - range)/2)  # 2
-        print("start range l:[%d %d)" % (2+start_index, len(map_txt)-start_index))
-        # start_l = int(random.uniform(2+start_index, len(map_txt)-start_index))
-        start_l = random.choice([3, 4, 5, 6, 7, 8])
-        # start_l = 1
-        print("start range s:[%d %d)" % (2+start_index, len(map_txt[0])-1-start_index))
-        start_s = random.choice([3, 4, 5, 6, 7, 8])
-        # start_s = 1
-        # start_s = int(random.uniform(2+start_index, len(map_txt[0])-1-start_index))
-        map[start_l] = map[start_l][:start_s] + 'P' + map[start_l][start_s+1:]
-        return map
-
-    map_txt = random_start(map_txt, range=start_range)
+    start_map_txt = random_pos(map_txt, tag='P', range_len=start_range)
+    if not only_new_start:
+        goal_map_txt = random_pos(map_txt, tag='G', range_len=len(map_txt)-2)
     # for i, l in enumerate(map_txt):  # line
     #     print("start map:", l)
 
@@ -117,6 +130,11 @@ def sample_maze(name, start_range=6):
                 print("goal position:[%d %d]" % (i, j))
             if s == ' ' or s == 'P' or s == 'G':
                 valid_pos.append([i, j])
+
+    if only_new_start:
+        print("random start")
+        return start_pos + [random.uniform(-180, 180)]
+
     print("map loaded")
     return name, size, map_txt, valid_pos, start_range, start_pos, goal_pos
 
@@ -147,7 +165,6 @@ def set_config_level(maze):
     maze_configs["start_range"] = [maze_start_range, maze_start_range]
     maze_configs["start_pos"] = maze_start_pos + [random.uniform(-180, 180)]  # start position on the txt map [rows, cols, orientation]
     # maze_configs["start_pos"] = maze_start_pos + [0]
-    # TODO: random sample a goal position
     maze_configs["goal_pos"] = maze_goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
     maze_configs["update"] = True  # update flag
 
@@ -265,7 +282,7 @@ class ReplayMemory(object):
     def __init__(self, capacity):
         self.capacity = capacity
         self.memory = []
-        self.position = 0
+        self.position = 0  # pointer to current position
 
     def push(self, *args):
         """saves a transition"""
@@ -273,6 +290,7 @@ class ReplayMemory(object):
             self.memory.append(None)
         self.memory[self.position] = Transition(*args)
         # self.memory[self.position] = transition_dict
+        # when capacitry is reached, FIFO
         self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size=10, sequence_length=100):
@@ -283,20 +301,51 @@ class ReplayMemory(object):
             batch = self.memory
             return self.memory
         else:
-            batch = random.choices(self.memory, k=batch_size)
-        training_batch = []
-        for eps_traj in batch:
-            length = len(eps_traj)
-            start_index = random.randint(1, length-sequence_length)
-            start_index -= 1
+            sample_batch = random.choices(self.memory, k=batch_size)
+        batch = Transition(*zip(*sample_batch))
+
+        in_pos_list = []
+        in_hd_list = []
+        target_pos_list = []
+        target_hd_list = []
+        ego_vel_list = []
+        for j in range(batch_size):
+            length = tf.shape(batch[0][j])
+            length = length.numpy()[0]
+            start_index = random.randint(1, length - sequence_length)
             end_index = start_index + sequence_length
-            traj = eps_traj[start_index:end_index]
-            training_batch.append(traj)
-            return training_batch
+
+            target_pos, in_pos = self.sample_slice(batch[0][j], start_index, end_index)
+            target_hd, in_hd = self.sample_slice(tf.expand_dims(batch[1][j], axis=1), start_index, end_index)
+            ego_vel, _ = self.sample_slice(batch[2][j], start_index, end_index)
+
+            in_pos_list.append(in_pos)
+            in_hd_list.append(in_hd)
+            target_pos_list.append(target_pos)
+            target_hd_list.append(target_hd)
+            ego_vel_list.append(ego_vel)
+
+        return tf.stack(in_pos_list), tf.stack(in_hd_list), tf.stack(ego_vel_list),\
+               tf.stack(target_pos_list), tf.stack(target_hd_list)
+
+    def sample_slice(self, traj, start, end):
+        slice_traj = traj[start:end, :]
+        initial = traj[start-1, :]
+        return slice_traj, initial
+
+
+    # def pop(self, length):
 
     def clear(self):
         self.memory = []
         self.position = 0
+
+    def get_coord_range(self, coord):
+        coord_range = ((-coord / 2, coord / 2), (-coord / 2, coord / 2))  # coordinate range for x and y
+        return coord_range
+
+    def get_memory_length(self):
+        return len(self.memory)
 
     def __len__(self):
         return len(self.memory)

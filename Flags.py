@@ -93,8 +93,12 @@ flags.DEFINE_string("training_optimizer_class",
 flags.DEFINE_string("training_optimizer_options",
                     "{'learning_rate': 1e-5, 'momentum': 0.9}",
                     "Defines a dict with opts passed to the optimizer.")
+flags.DEFINE_bool("dataset_with_vision", False,
+                  "Load vision inputs from dataset.")
 flags.DEFINE_bool("train_with_vision", False,
                   "Train with visual inputs from dmlab.")
+flags.DEFINE_bool("load_grid_cell", False,
+                  "Load pretrained grid cell model")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")
 flags.DEFINE_integer("saver_pdf_time", 50,

@@ -62,16 +62,17 @@ class GridModel:
 
 
 class GridAgent(threading.Thread):
-    def __init__(self, replay_buffer, grid_model):
+    def __init__(self, replay_buffer, grid_model, condition):
         threading.Thread.__init__(self)
         self.replay_buffer = replay_buffer
         self.lock = threading.Lock()
-        # TODO: change data_root to read from replay buffer
-        data_root = FLAGS.saver_results_directory + '/dm_lab_data'
-        self.dat_reader = dataset_reader.DataReader(
-            FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.dataset_with_vision)
+        self.thread_name = "grid_cell"
+        # data_root = FLAGS.saver_results_directory + '/dm_lab_data'
+        # self.data_reader = dataset_reader.DataReader(
+        #     FLAGS.task_dataset_info, root=data_root, num_threads=4, vision=FLAGS.dataset_with_vision)
 
         self.model = grid_model
+        self.COND = condition
 
         # self.place_cell_ensembles = utils.get_place_cell_ensembles(
         #     env_size=FLAGS.task_env_size,
@@ -102,6 +103,7 @@ class GridAgent(threading.Thread):
         # self.opt = optimizer
 
         self.log = self.setup_logger()
+        print("initialize on thread", self.thread_name)
 
     def prepare_data(self, traj):
         if FLAGS.dataset_with_vision:
@@ -126,7 +128,7 @@ class GridAgent(threading.Thread):
         return concat_inputs, initial_to_cells, targets_to_cells
 
     def setup_logger(self):
-        log_name = 'tensorflow_py3.7_dmlab_' + time.strftime("%m-%d_%H:%M", time.localtime())
+        log_name = 'tensorflow_py3.7_dmlab_A3C' + time.strftime("%m-%d_%H:%M", time.localtime())
         logging.basicConfig(level=logging.INFO,
                             format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                             datefmt='%a, %d %b %Y %H:%M:%S',
@@ -204,8 +206,9 @@ class GridAgent(threading.Thread):
         # loss = loss_object(targets, ensembles_logits)
         return ensembles_logits, bottleneck, lstm_output
 
-
     def train(self):
+        self.log.info("initialize on thread %s", self.thread_name)
+
         # Store the grid scores
         grid_scores = dict()
         grid_scores['btln_60'] = np.zeros((FLAGS.model_nh_bottleneck,))
@@ -219,7 +222,7 @@ class GridAgent(threading.Thread):
         starts = [0.2] * 10
         ends = np.linspace(0.4, 1.0, num=10)
         masks_parameters = zip(starts, ends.tolist())
-        latest_epoch_scorer = scores.GridScorer(20, self.data_reader.get_coord_range(),
+        latest_epoch_scorer = scores.GridScorer(20, self.replay_buffer.get_coord_range(FLAGS.task_env_size),
                                                 masks_parameters)
 
         checkpoint = tf.train.Checkpoint(optimizer=self.model.opt, net=self.model.rnn)
@@ -227,14 +230,16 @@ class GridAgent(threading.Thread):
                                                                                                time.localtime())
 
         manager = tf.train.CheckpointManager(checkpoint, directory=check_dir, max_to_keep=20,
-                                             checkpoint_name='model_dmlab.ckpt')
+                                             checkpoint_name='model_dmlab_A3C.ckpt')
 
         for epoch in range(FLAGS.training_epochs):
             loss_acc = list()
             if FLAGS.model_nh_bottleneck:
                 self.log.info("Adding dropout layers")
             for _ in range(FLAGS.training_steps_per_epoch):
-                train_traj = self.data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                # train_traj = self.data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                train_traj = self.replay_buffer.sample(batch_size=FLAGS.training_minibatch_size,
+                                                       sequence_length=FLAGS.sequence_length)
                 # init_pos, init_hd, ego_vel, target_pos, target_hd = train_traj
                 conc_inputs, initial_conds, ensembles_targets = self.prepare_data(train_traj)
                 train_loss, grad = self.train_step(ensembles_targets, conc_inputs, initial_conds)
@@ -249,7 +254,9 @@ class GridAgent(threading.Thread):
                 res = dict()
                 for _ in range(FLAGS.training_evaluation_minibatch_size //
                                FLAGS.training_minibatch_size):
-                    train_traj = self.data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                    # train_traj = self.data_reader.read(batch_size=FLAGS.training_minibatch_size)
+                    train_traj = self.replay_buffer.sample(batch_size=FLAGS.training_minibatch_size,
+                                                           sequence_length=FLAGS.sequence_length)
                     if FLAGS.dataset_with_vision:
                         init_pos, init_hd, ego_vel, target_pos, target_hd, frame = train_traj
                     else:
@@ -268,7 +275,7 @@ class GridAgent(threading.Thread):
 
                 # Store at the end of validation
                 if epoch % FLAGS.saver_pdf_time == 0:
-                    filename = 'rates_and_sac_latest_hd_dmlab_' + time.strftime("%m-%d_%H:%M",
+                    filename = 'rates_and_sac_latest_hd_dmlab_A3C' + time.strftime("%m-%d_%H:%M",
                                                                                 time.localtime()) + '.pdf'
                     plotname = 'trajectory_py2.7_' + time.strftime("%m-%d_%H:%M", time.localtime()) + '.pdf'
                     manager.save()
@@ -286,6 +293,18 @@ class GridAgent(threading.Thread):
                 grid_mask[grid_scores_60 >= 0.37] = 1
                 num_grid_cells = np.sum(grid_mask)
                 self.log.info('Epoch %i, number of grid-cell like cells %f', epoch, num_grid_cells)
+
+    def run(self):
+        # while True:
+        #     memory_length = self.replay_buffer.get_memory_length()
+        #     if memory_length > FLAGS.training_minibatch_size:
+        #         print("start supervised training")
+        #         break
+        self.COND.acquire()
+        self.COND.wait()
+        print("start supervised training")
+        self.train()
+        self.COND.release()
 
 
 def load_grid_cell(path, optimizer):

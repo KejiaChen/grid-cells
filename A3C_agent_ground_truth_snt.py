@@ -82,7 +82,7 @@ flags.DEFINE_integer("model_nh_lstm",
 # Environment config
 flags.DEFINE_float("coord_range",
                     2.5,
-                    "coordinate range of the dmlab room")
+                    "coordinate range of the dmlab roomfreset")
 flags.DEFINE_integer("dataset_size",
                      100,
                      "number of files in the dataset")
@@ -445,6 +445,9 @@ class WorkerAgent(threading.Thread):
             new_start = True
             action_index = 6  # init action: move forward
 
+            # reset the env
+            last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+
             # last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
             # resize_obs = -1 + (last_obs - 1) / 127
             # reward = 0
@@ -458,8 +461,12 @@ class WorkerAgent(threading.Thread):
             # while not done:
             while episode_length < FLAGS.max_episode_length:
                 if new_start:
-                    # reset the env
-                    last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+                    # # reset the env
+                    # last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+                    # restart from random position
+                    start_pos = sample_maze(name=FLAGS.map_name, start_range=6, only_new_start=True)
+                    last_obs, _, pos, rots, ego_vel = self.env.restart(start_pos)
+                    # resize_obs = -1 + (last_obs - 1) / 127
                     # resize_obs = -1 + (last_obs - 1) / 127
                     reward = 0
                     state = self.concatenate((pos, rots, action_index, reward))

@@ -19,7 +19,6 @@ from dmlab_maze.dm_env.A3CLabEnv import RandomMaze
 import logging
 import time
 from gridcell_agent import *
-# from env.A3CLabEnv import RandomMaze
 from multiprocessing import cpu_count
 
 FILE_PATH = os.path.realpath(__file__)
@@ -28,7 +27,9 @@ FILE_DIR, _ = os.path.split(FILE_PATH)
 # wandb.init(name='A3C', project="deep-rl-tf2")
 
 COORD = tf.train.Coordinator()
+COND = threading.Condition()
 CUR_EPISODE = 0
+GRID_TRAINING = 0
 # Transition = namedtuple('Transition', ('obs', 'action', 'reward', 'pos', 'rots', 'trans_vel', 'ang_vel', 'done'))
 Transition = namedtuple('Transition', ('pos', 'rots', 'vel'))
 
@@ -54,6 +55,7 @@ def make_configs():
     # initialize the maze environment
     maze_configs = set_config_level(random_maze)
     return maze_configs
+
 
 def make_environment(level):
     # SET THE ENVIRONMENT
@@ -139,7 +141,7 @@ class ActorCritic:
 
 
 class LearnerAgent:
-    def __init__(self, env_name, a3c_optimizer, grid_optimizer, num_worker, memory_size=2e7):
+    def __init__(self, env_name, a3c_optimizer, grid_optimizer, num_worker, memory_size=1e6):
         # env = gym.make(env_name)
         # self.map_name = map_name
         self.env_name = env_name
@@ -162,7 +164,7 @@ class LearnerAgent:
         ckpt_path = '/home/learning/Documents/kejia/grid-cells/result/model/ckpt_dmlab04-07_21:22/model_dmlab.ckpt-20'
         self.grid_cell_model = GridModel(optimizer=self.grid_opt,
                                          ckpt_path=ckpt_path,
-                                         load_model=True)
+                                         load_model=FLAGS.load_grid_cell)
 
         self.num_workers = num_worker
         self.logger = self.setup_logger()
@@ -231,12 +233,11 @@ class LearnerAgent:
                                        self.stats_dict, self.replay_buffer, self.grid_cell_model))
 
         # workers.append(GridAgent(self.replay_buffer, self.grid_cell_model))
+        grid_agent = GridAgent(self.replay_buffer, self.grid_cell_model, COND)
+        workers.append(grid_agent)
 
         for worker in workers:
             worker.start()
-
-        # for worker in workers:
-        #     worker.join()
 
         COORD.join(workers)
 
@@ -373,6 +374,7 @@ class WorkerAgent(threading.Thread):
 
     def train(self):
         global CUR_EPISODE  # current episode
+        global GRID_TRAINING
         # logger = self.setup_logger()
 
         self.logger.info("initialize on thread %s", self.thread_name)
@@ -401,6 +403,9 @@ class WorkerAgent(threading.Thread):
             new_start = True
             action_index = 6  # init action: move forward
 
+            # reset the env
+            last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+
             # last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
             # resize_obs = -1 + (last_obs - 1) / 127
             # reward = 0
@@ -419,8 +424,11 @@ class WorkerAgent(threading.Thread):
             # while not done:
             while episode_length < FLAGS.max_episode_length:
                 if new_start:
-                    # reset the env
-                    last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+                    # # reset the env
+                    # last_obs, _, pos, rots, ego_vel = self.env.reset(make_configs())
+                    # restart from random position
+                    start_pos = sample_maze(name=FLAGS.map_name, start_range=6, only_new_start=True)
+                    last_obs, _, pos, rots, ego_vel = self.env.restart(start_pos)
                     # resize_obs = -1 + (last_obs - 1) / 127
                     reward = 0
                     done = 0
@@ -428,7 +436,7 @@ class WorkerAgent(threading.Thread):
                     state = self.concat_grid(pos, rots, ego_vel, action_index, reward, done)
                     # state = self.concatenate((pos, rots, action_index, reward))
 
-                    # policy listm initial state
+                    # policy lstm initial state
                     ht = tf.zeros((1, FLAGS.policy_nh_lstm))
                     ct = tf.zeros((1, FLAGS.policy_nh_lstm))
                     lstmstate = snt.LSTMState(ht, ct)
@@ -467,8 +475,8 @@ class WorkerAgent(threading.Thread):
                         last_obs, reward, done, last_dist, pos, rots, ego_vel, none_dict = self.env.step(action, FLAGS.action_repeat)
                         resize_obs = -1 + (last_obs - 1) / 127
 
-                        ego_vel_list.append(np.array(ego_vel))
-                        target_pos_list.append(np.array(pos))
+                        ego_vel_list.append(np.array(ego_vel, dtype="float32"))
+                        target_pos_list.append(np.array(pos, dtype="float32"))
                         target_hd_list.append(rots)
                         # obs_img_list.append(resize_obs)
 
@@ -494,7 +502,7 @@ class WorkerAgent(threading.Thread):
                         state = next_state
 
                         if new_start:
-                            if len(target_hd_list) < (FLAGS.sequence_length+1):
+                            if len(target_hd_list) > (FLAGS.sequence_length+1):
                                 with self.lock:
                                     vel_eps_traj = tf.stack(ego_vel_list, axis=0)
                                     pos_eps_traj = tf.stack(target_pos_list, axis=0)
@@ -556,6 +564,15 @@ class WorkerAgent(threading.Thread):
             self.stats_dict.update("episode_reward", episode_reward)
             self.logger.info('Episode %i, reward %.5f, length %i, on %s', CUR_EPISODE, episode_reward,
                              episode_length, self.thread_name)
+            self.logger.info("memory_length %s", self.replay_buffer.get_memory_length())
+
+            if GRID_TRAINING == 0:
+                if self.replay_buffer.get_memory_length() > FLAGS.training_minibatch_size:
+                    COND.acquire()
+                    print("notify the grid cell")
+                    COND.notify()
+                    GRID_TRAINING = 1
+                    COND.release()
             ep_reward = 0
             CUR_EPISODE += 1
 
