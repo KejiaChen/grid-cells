@@ -485,6 +485,7 @@ class WorkerAgent(threading.Thread):
                     for update_step in range(FLAGS.backprop_len):
                     # if CUR_EPISODE % FLAGS.backprop_len == 0:
                     #     probs, value, (ht, ct) = self.actor_critic.model((state, (ht, ct)))
+                        # agent step
                         probs, value, lstmstate = self.actor_critic.model((state, lstmstate))
                         # action_index = np.random.choice(self.action_dim, p=probs[0])
                         dist = tfp.distributions.Categorical(logits=probs)
@@ -500,6 +501,7 @@ class WorkerAgent(threading.Thread):
                         log_prob = dist.log_prob(action_index)
                         entropy = dist.entropy()
 
+                        # env step
                         last_obs, reward, done, last_dist, pos, rots, ego_vel, none_dict = self.env.step(action, FLAGS.action_repeat)
                         if done:
                             print("Reach the goal!")

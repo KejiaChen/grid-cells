@@ -136,6 +136,10 @@ flags.DEFINE_integer("eps_length",
                      100,
                      "number of steps in each trajectory")
 
+# Debug
+flags.DEFINE_string("task_dataset_info", "square_room",
+                    "Name of the room in which the experiment is performed.")
+
 flags.mark_flag_as_required("task_root")
 flags.mark_flag_as_required("saver_results_directory")
 FLAGS = flags.FLAGS
