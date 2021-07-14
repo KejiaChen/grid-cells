@@ -36,7 +36,7 @@ import time
 
 matplotlib.use('Agg')
 
-import dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
+import supervised_training.dmlab_dataset_reader as dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
 import vision_model as model    # pylint: disable=g-bad-import
 import scores_new as scores    # pylint: disable=g-bad-import-order
 import utils_new as utils   # pylint: disable=g-bad-import-order
@@ -46,8 +46,8 @@ import utils_new as utils   # pylint: disable=g-bad-import-order
 flags.DEFINE_string("task_dataset_info", "square_room",
                     "Name of the room in which the experiment is performed.")
 flags.DEFINE_string("task_root",
-                    "/home/learning/Documents/kejia/grid-cells",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells",
+                    None,
                     "Dataset path.")
 flags.DEFINE_integer("use_data_files", 100,
                      "Number of files to read")
@@ -113,8 +113,8 @@ flags.DEFINE_bool("supervised_vision", True,
 
 # Store
 flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells/",
+                    None,
                     "Path to directory for saving results.")
 flags.DEFINE_integer("saver_eval_time", 2,
                      "Frequency at which results are saved.")

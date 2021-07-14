@@ -2,8 +2,8 @@ from absl import flags
 import sys
 # Task config
 flags.DEFINE_string("task_root",
-                    "/home/learning/Documents/kejia/grid-cells",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells",
+                    None,
                     "Dataset path.")
 flags.DEFINE_string("data_root",
                     "/home/learning/Documents/kejia/grid-cells/dm_lab_data/",
@@ -12,8 +12,8 @@ flags.DEFINE_string("map_name",
                     "map_10_0.txt",
                     "name of the txt map")
 flags.DEFINE_string("saver_results_directory",
-                    "/home/learning/Documents/kejia/grid-cells/",
-                    # None,
+                    # "/home/learning/Documents/kejia/grid-cells/",
+                    None,
                     "Path to directory for saving results.")
 flags.DEFINE_float("task_env_size", 2.5,
                    "Environment size (meters).")

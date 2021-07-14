@@ -168,10 +168,10 @@ class LearnerAgent:
                                          load_model=FLAGS.load_grid_cell)
 
         self.num_workers = num_worker
-        self.a3c_logger = self.setup_logger(file_name='A3C_ground_truth_grid', file_path='/log/drl_log/')
-        self.grid_logger = self.setup_logger(file_name='tensorflow_py3.7_dmlab_A3C', file_path='/log/')
+        self.a3c_logger = self.setup_logger(file_name='A3C_ground_truth_grid', file_path='log/drl_log/')
+        self.grid_logger = self.setup_logger(file_name='tensorflow_py3.7_dmlab_A3C', file_path='log/')
 
-        stats_file = FLAGS.saver_results_directory + "log/drl_log/stats" + \
+        stats_file = "log/drl_log/stats" + \
                      time.strftime("%m-%d_%H:%M", time.localtime()) + '.json'
         self.stats_dict = StatsDict(['episode_reward'], save_file=stats_file)
 
@@ -189,7 +189,7 @@ class LearnerAgent:
         formatter = logging.Formatter('%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s')
 
         # handler
-        fh = logging.FileHandler(FLAGS.task_root + file_path + log_name + '.log')
+        fh = logging.FileHandler(file_path + log_name + '.log')
         fh.setLevel(logging.INFO)
         fh.setFormatter(formatter)
 
