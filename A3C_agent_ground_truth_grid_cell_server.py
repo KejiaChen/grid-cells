@@ -1,10 +1,8 @@
 import collections
-import gym
 import numpy as np
 import statistics
-import wandb
+# import wandb
 import tensorflow as tf
-import tqdm
 import sonnet as snt
 import tensorflow_probability as tfp
 from typing import Any, List, Sequence, Tuple
@@ -602,7 +600,7 @@ def main():
     env_name = "nav_random_maze"
     # env_name = 'contributed/dmlab30/rooms_watermaze'
 
-    agent = LearnerAgent(env_name, a3c_optimizer, grid_optimizer, num_worker=3, memory_size=10000)
+    agent = LearnerAgent(env_name, a3c_optimizer, grid_optimizer, num_worker=FLAGS.num_worker, memory_size=10000)
     agent.train()
 
 

@@ -65,7 +65,7 @@ flags.DEFINE_integer("max_episode_length",
                      5400,  # 5400
                      "Number of maximum training steps in one episode.")
 flags.DEFINE_integer("episode_num",
-                     1000,
+                     40000,
                      "Number of episodes.")
 flags.DEFINE_string("A3C_training_optimizer_class",
                     "tf.keras.optimizers.RMSprop",
